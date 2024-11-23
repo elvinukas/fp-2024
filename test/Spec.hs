@@ -1,6 +1,10 @@
 {-# LANGUAGE ImportQualifiedPost #-}
 import Test.Tasty ( TestTree, defaultMain, testGroup )
 import Test.Tasty.HUnit ( testCase, (@?=), assertFailure )
+import Test.Tasty.QuickCheck as QC
+
+import Data.List
+import Data.Ord
 
 import Data.Either (isRight)
 
@@ -11,7 +15,7 @@ main :: IO ()
 main = defaultMain tests
 
 tests :: TestTree
-tests = testGroup "Tests" [unitTests]
+tests = testGroup "Tests" [unitTests, propertyTests]
 
 unitTests :: TestTree
 unitTests = testGroup "Lib1 tests"
