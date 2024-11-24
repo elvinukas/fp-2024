@@ -15,6 +15,7 @@ module Lib2
     CheckIn(..),
     CheckOut(..),
     Price(..),
+    Reservation(..),
     parseQuery,
     emptyState,
     stateTransition,
@@ -37,6 +38,7 @@ data Query =
   CancelReservation ID |
   AddAdditionalGuest Guest ID |
   ListState
+
 
 newtype ID = ID Int
   deriving (Show, Eq)
@@ -95,8 +97,21 @@ type Parser a = String -> Either String (a, String)
 instance Eq Query where
   (==) _ _= False
 
-instance Show Query where
-  show _ = ""
+instance Show Lib2.Query where
+  show (Add hotel) = "Add hotel: " ++ formatHotelDetails hotel
+  show (Remove (ID id)) = "Remove hotel with ID: " ++ show id
+  show (MakeReservation guest hotel checkIn checkOut price) =
+    "Make reservation for guest: " ++ formatGuest guest ++
+    " at hotel: " ++ formatHotelDetails hotel ++
+    " from " ++ formatCheckIn checkIn ++
+    " to " ++ formatCheckOut checkOut ++
+    " with price: " ++ formatPrice price
+  show (CancelReservation (ID id)) = "Cancel reservation with ID: " ++ show id
+  show (AddAdditionalGuest guest (ID id)) =
+    "Add additional guest: " ++ formatGuest guest ++
+    " to reservation with ID: " ++ show id
+  show ListState = "List current state"
+  
   
 -- After all query entries are converted into seperate lines, parse them as seperate inputs
 parseLine :: Parser String
