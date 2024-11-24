@@ -1,4 +1,5 @@
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE NamedFieldPuns #-}
 module Lib3
     ( stateTransition,
     StorageOp (..),
@@ -13,7 +14,7 @@ import Control.Concurrent ( Chan , readChan, writeChan )
 import Control.Concurrent.STM(STM, TVar)
 import qualified Lib2
 import Data.Char (isSpace)
-import Data.List (isPrefixOf, notElem, (\\))
+import Data.List (isPrefixOf, notElem, (\\), intercalate)
 import Lib2 (Query(Add))
 
 data StorageOp = Save String (Chan ()) | Load (Chan String)
@@ -147,13 +148,6 @@ marshallState finalState =
       [query] -> Single query
       queries -> Batch queries
 
-
-
-
-    
-
-
-
 -- | Renders Statements into a String which
 -- can be parsed back into Statements by parseStatements
 -- function. The String returned by this function must be used
@@ -161,7 +155,87 @@ marshallState finalState =
 -- Must have a property test
 -- for all s: parseStatements (renderStatements s) == Right(s, "")
 renderStatements :: Statements -> String
-renderStatements _ = error "Not implemented 5"
+renderStatements (Single query) =
+  "START\n" ++ renderQuery query ++ ".\nEND"
+renderStatements (Batch queries) =
+  "START\n" ++ unlines (map (\q -> renderQuery q ++ ".") queries) ++ "END" 
+
+
+renderQuery :: Lib2.Query -> String
+renderQuery (Add hotel) =
+  "ADD. " ++ renderHotel hotel
+renderQuery (Lib2.Remove id) =
+  "REMOVE. " ++ show id
+renderQuery (Lib2.MakeReservation guest hotel checkIn checkOut price) =
+  "MAKE RESERVATION. " ++ renderGuest guest ++ renderHotel hotel ++
+  renderCheckIn checkIn ++ renderCheckout checkOut ++ renderPrice price
+renderQuery (Lib2.CancelReservation id) =
+  "CANCEL RESERVATION. " ++ show id
+renderQuery (Lib2.AddAdditionalGuest guest id) =
+  "ADD ADDITIONAL GUEST. " ++ renderGuest guest ++ show id
+renderQuery (Lib2.ListState) =
+  "List of the current state..."
+
+
+renderHotel :: Lib2.Hotel -> String
+renderHotel (Lib2.Hotel {Lib2.hotelName, Lib2.hotelChain, Lib2.floors}) =
+  "HOTEL: " ++ hotelName ++ ". " ++
+  renderChain hotelChain ++
+  renderFloors floors
+
+renderChain :: [Lib2.Hotel] -> String
+renderChain [] = ""
+renderChain (hotel:hotels) =
+  "CHAIN OF. " ++ renderHotel hotel ++ renderChain hotels
+
+renderFloors :: [Lib2.Floor] -> String
+renderFloors [] = ""
+renderFloors floors =
+  concatMap renderFloor floors
+
+renderFloor (Lib2.Floor { Lib2.floorNumber, Lib2.rooms }) =
+  "FLOOR: " ++ show floorNumber ++ ". " ++ renderRooms rooms
+
+renderRooms :: [Lib2.Room] -> String
+renderRooms [] = ""
+renderRooms (room:rooms) =
+  renderRoom room ++ renderRooms rooms
+
+renderRoom :: Lib2.Room -> String
+renderRoom room = 
+  "ROOM: " ++ show (Lib2.roomNumber room) ++ ". " ++
+  renderRoomSections (Lib2.roomSections room) ++
+  renderAmenities (Lib2.amenities room)
+
+renderRoomSections :: [Lib2.Room] -> String
+renderRoomSections [] = ""
+renderRoomSections (section:sections) =
+  "ROOM SECTION. " ++ renderRoom section ++
+  renderRoomSections sections
+
+renderAmenities :: [Lib2.Amenity] -> String
+renderAmenities [] = ""
+renderAmenities amenities = "AMENITIES: " ++ intercalate ", " (map show amenities)
+
+renderGuest :: Lib2.Guest -> String
+renderGuest (Lib2.Guest{Lib2.guestName, Lib2.guestSurname}) = 
+  "GUEST: " ++ guestName ++ " " ++ guestSurname ++ ". "
+
+renderCheckIn :: Lib2.CheckIn -> String
+renderCheckIn checkIn =
+  "CHECK IN: " ++ show (Lib2.checkInDate checkIn) ++ " " ++ show (Lib2.checkOuttime checkIn) ++ ". "
+
+renderCheckout :: Lib2.CheckOut -> String
+renderCheckout checkOut =
+  "CHECK OUT: " ++ show (Lib2.checkOutDate checkOut) ++ " " ++ show (Lib2.checkOutTime checkOut) ++ ". "
+
+renderPrice :: Lib2.Price -> String
+renderPrice (Lib2.Price price) =
+  "PRICE: " ++ show price ++ ". "
+
+  
+
+
 
 -- | Updates a state according to a command.
 -- Performs file IO via ioChan if needed.
