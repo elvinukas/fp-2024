@@ -53,7 +53,7 @@ unitTests = testGroup "Lib1 / Lib2 tests"
           case Lib2.stateTransition initialState addQuery of
             Left err -> assertFailure $ "Failed to execute 'ADD query: " ++ err
             Right (_, stateAfterAdd) ->
-              case Lib2.parseQuery ("MAKE RESERVATION. GUEST: Elvinukas Testukas. HOTEL: Grand. FLOOR: 1. ROOM: 101. CHECK IN: 2020-01-01 10:00. " ++ 
+              case Lib2.parseQuery ("MAKE RESERVATION. GUEST: Elvinukas Testukas. 1. CHECK IN: 2020-01-01 10:00. " ++ 
               "CHECK OUT: 2020-02-02 12:00. PRICE: 210. ") of
                 Left err -> assertFailure $ "Failed to parse 'MAKE RESERVATION' query: " ++ err
                 Right makeReservationQuery -> do
@@ -72,7 +72,7 @@ unitTests = testGroup "Lib1 / Lib2 tests"
           case Lib2.stateTransition initialState addQuery of
             Left err -> assertFailure $ "Failed to execute 'ADD query: " ++ err
             Right (_, stateAfterAdd) ->
-              case Lib2.parseQuery ("MAKE RESERVATION. GUEST: Elvinukas Testukas. HOTEL: Grand. FLOOR: 1. ROOM: 101. CHECK IN: 2020-01-01 10:00. " ++ 
+              case Lib2.parseQuery ("MAKE RESERVATION. GUEST: Elvinukas Testukas. 1. CHECK IN: 2020-01-01 10:00. " ++ 
               "CHECK OUT: 2020-02-02 12:00. PRICE: 210. ") of
                 Left err -> assertFailure $ "Failed to parse 'MAKE RESERVATION' query: " ++ err
                 Right makeReservationQuery -> do
