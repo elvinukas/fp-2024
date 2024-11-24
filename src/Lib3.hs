@@ -84,14 +84,13 @@ parseCommand input
 -- You can change Lib2.parseQuery signature if needed.
 parseStatements :: String -> Either String (Statements, String)
 parseStatements input =
-  if "BEGIN\n" `isPrefixOf` input
-    then case parseBatch (drop 6 input) of
+  let trimmedInput = trim input in
+  if "BEGIN" `isPrefixOf` trimmedInput
+    then case parseBatch (drop (length "BEGIN") trimmedInput) of
       Right (queries, rest) -> Right (Batch queries, rest)
       Left err -> Left err
-  else case Lib2.parseQuery input of
-    Right query ->
-      let rest = drop (length (show query)) input
-      in Right (Single query, rest)
+  else case Lib2.parseQuery trimmedInput of
+    Right query -> Right (Single query, drop (length (show query)) trimmedInput)
     Left err -> Left err
 
 
@@ -99,14 +98,19 @@ parseStatements input =
 -- | parses a batch of queries if there are any
 
 parseBatch :: String -> Either String ([Lib2.Query], String)
-parseBatch input =
-  let
-    (queries, rest) = break null (lines input) -- removing empty lines too
-    parsedQ = mapM Lib2.parseQuery queries
-  in
-    case parsedQ of
-      Right query -> Right (query, unlines rest)
-      Left err -> Left err
+parseBatch input = do
+  let lines' = lines input  -- split into lines
+  let (queryLines, rest) = break (== "END") lines'  -- split at END
+  
+  -- removing empty lines, begin and end markers
+  let cleanedQueries = filter (\line -> not (null (trim line)) 
+                                   && line /= "BEGIN" 
+                                   && line /= "END") queryLines
+  
+  -- parsing each line
+  case mapM Lib2.parseQuery cleanedQueries of
+    Right queries -> Right (queries, unlines (drop 1 rest))  -- drop 1 to skip the END line
+    Left err -> Left err
 
 
 
@@ -245,7 +249,7 @@ genPrice (Lib2.Price price) =
 -- Right contains an optional message to print, updated state
 -- is stored in transactinal variable
 stateTransition :: TVar Lib2.State -> Command -> Chan StorageOp ->
-            IO (Either String (Maybe String, Lib2.State))
+            IO (Either String (Maybe String, String))
 stateTransition stateVar command ioChan = case command of
   LoadCommand -> do
     loadChan <- newChan
@@ -264,13 +268,13 @@ stateTransition stateVar command ioChan = case command of
             case applyQueries of
               Right newState -> do
                 writeTVar stateVar newState
-                return $ Right (Just "Loading was successful.", newState)
+                return $ Right (Just "Loading was successful.", show newState)
               Left err -> return $ Left ("Error applying queries: " ++ err)
           Single query -> do
             case Lib2.stateTransition initialState query of
               Right (_, newState) -> do
                 writeTVar stateVar newState
-                return $ Right (Just "Loading was successful.", newState)
+                return $ Right (Just "Loading was successful.", show newState)
               Left err -> return $ Left ("Error applying query: " ++ err)
       Left err -> return $ Left ("Error parsing statements: " ++ err)
             
@@ -281,7 +285,7 @@ stateTransition stateVar command ioChan = case command of
     saveChan <- newChan
     writeChan ioChan (Save state saveChan)
     _ <- readChan saveChan
-    return $ Right (Just "State saving was successful.", currentState)
+    return $ Right (Just "State saving was successful.", show currentState)
 
   StatementCommand statements -> atomically $ do
     currentState <- readTVar stateVar
@@ -295,11 +299,11 @@ stateTransition stateVar command ioChan = case command of
         case applyQueries of
           Right newState -> do
             writeTVar stateVar newState
-            return $ Right (Just "Statements executed successfully.", newState)
+            return $ Right (Just "Statements executed successfully.", show newState)
           Left err -> return $ Left ("Error executing statements: " ++ err)
       Single query -> do
         case Lib2.stateTransition currentState query of
           Right (_, newState) -> do
             writeTVar stateVar newState
-            return $ Right (Just "Statement executed successfully.", newState)
+            return $ Right (Just "Statement executed successfully.", show newState)
           Left err -> return $ Left ("Error executing statement: " ++ err)
