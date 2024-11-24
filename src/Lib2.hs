@@ -26,7 +26,8 @@ module Lib2
     ) where
 
 import Data.Char (isSpace, isDigit)
-import Data.List (isPrefixOf, tails, findIndex, intercalate)
+import Data.List (isPrefixOf, tails, findIndex, intercalate, find)
+import Debug.Trace (trace)
 import Foreign.C (errnoToIOError)
 
 
@@ -37,7 +38,7 @@ import Foreign.C (errnoToIOError)
 data Query =
   Add Hotel|
   Remove ID |
-  MakeReservation Guest Hotel CheckIn CheckOut Price  |
+  MakeReservation Guest ID CheckIn CheckOut Price  |
   CancelReservation ID |
   AddAdditionalGuest Guest ID |
   ListState
@@ -103,9 +104,9 @@ instance Eq Query where
 instance Show Lib2.Query where
   show (Add hotel) = "Added hotel: \n" ++ formatHotelDetails hotel
   show (Remove (ID id)) = "Remove hotel with ID: " ++ show id
-  show (MakeReservation guest hotel checkIn checkOut price) =
+  show (MakeReservation guest (ID id) checkIn checkOut price) =
     "Make reservation for guest: \n" ++ formatGuest guest ++
-    " at hotel: \n" ++ formatHotelDetails hotel ++
+    " at hotel with id: \n" ++ show id ++
     " from \n" ++ formatCheckIn checkIn ++
     " to \n" ++ formatCheckOut checkOut ++
     " with price: \n" ++ formatPrice price
@@ -251,7 +252,9 @@ parseInt input =
 parseID :: Parser ID
 parseID input = 
   case parseInt input of
-    Right (intValue, remaining) -> Right (ID intValue, remaining)
+    Right (intValue, remaining) -> 
+      let remaining' = dropWhile isSpace (drop (length (show intValue)) remaining)
+      in Right (ID intValue, remaining')
     Left err -> Left err
 
 -- <add> ::= "ADD. " <hotelsID> 
@@ -268,10 +271,10 @@ parseRemove input =
     Right (id, remaining) -> Right (Remove id, remaining)
     Left err -> Left err
 
--- <make_reservation> ::= "MAKE RESERVATION. " <guest> <hotel> <check_in> <check_out> <price>
+-- <make_reservation> ::= "MAKE RESERVATION. " <guest> <hotelsID> <check_in> <check_out> <price>
 parseMakeReservation :: Parser Query
 parseMakeReservation =
-  and5' MakeReservation parseGuest parseHotel parseCheckIn parseCheckOut parsePrice
+  and5' MakeReservation parseGuest parseID parseCheckIn parseCheckOut parsePrice
 
 
 -- <cancel_reservation> ::= "CANCEL RESERVATION. " <reservationID>
@@ -554,7 +557,8 @@ parseGuest input =
 
 -- <check_in> ::= "CHECK IN: " <date> " " <time> ". "
 parseCheckIn :: Parser CheckIn
-parseCheckIn input =
+parseCheckIn input = 
+  trace ("Parsing CheckIn from input: " ++ input) $
   case parseKeyword "CHECK IN: " input of
     Right (line, rest) ->
       let parts = words (drop (length "CHECK IN: ") line)
@@ -693,16 +697,17 @@ stateTransition st query = case query of
         newState = st { availableHotelEntities = newHotelEntities }
     in Right (Just "Hotel removed successfully!", newState)
 
-  MakeReservation guest hotel checkIn checkOut price ->
+  MakeReservation guest hotelID checkInDate checkOutDate reservationPrice ->
     -- Check if the hotel exists in availableHotelEntities
-    if any (\h -> availableHotel h == hotel) (availableHotelEntities st) then
-      let newId = ID (length (reservations st) + 1)
-          newReservation = Reservation newId hotel [guest] checkIn checkOut price
-          newReservations = newReservation : reservations st
-          newState = st { reservations = newReservations }
-      in Right (Just $ "Reservation made successfully!", newState)
-    else
-      Left "Error: Hotel does not exist."
+    case find (\h -> availableEntityId h == hotelID) (availableHotelEntities st) of
+      Just (AvailableHotelEntity _ hotel) ->
+        let newId = ID (length (reservations st) + 1)
+            newReservation = Reservation newId hotel [guest] checkInDate checkOutDate reservationPrice
+            newReservations = newReservation : reservations st
+            newState = st { reservations = newReservations }
+        in Right (Just "Reservation made successfully!", newState)
+      Nothing ->
+        Left "Error: Hotel does not exist."
 
   CancelReservation (ID resID) ->
     let newReservations = filter (\r -> reservationID r /= ID resID) (reservations st)

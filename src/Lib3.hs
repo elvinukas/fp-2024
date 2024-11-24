@@ -171,8 +171,8 @@ genQuery (Add hotel) =
   "ADD. " ++ genHotel hotel
 genQuery (Lib2.Remove id) =
   "REMOVE. " ++ show id
-genQuery (Lib2.MakeReservation guest hotel checkIn checkOut price) =
-  "MAKE RESERVATION. " ++ genGuest guest ++ genHotel hotel ++
+genQuery (Lib2.MakeReservation guest id checkIn checkOut price) =
+  "MAKE RESERVATION. " ++ genGuest guest ++ show id ++
   genCheckIn checkIn ++ genCheckout checkOut ++ genPrice price
 genQuery (Lib2.CancelReservation id) =
   "CANCEL RESERVATION. " ++ show id

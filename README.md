@@ -8,10 +8,10 @@ This is a functional programming project designed to mimic a hotel management sy
 
 ```markdown
 
-<add> ::= "ADD. " <hotelsID> 
+<add> ::= "ADD. " <hotel> 
 <remove> ::= "REMOVE. " <hotelsID> 
 
-<make_reservation> ::= "MAKE RESERVATION. " <guest> <hotel> <check_in> <check_out> <price>
+<make_reservation> ::= "MAKE RESERVATION. " <guest> <hotelsID> <check_in> <check_out> <price>
 <cancel_reservation> ::= "CANCEL RESERVATION. " <reservationID>
 <add_additional_guest> ::= "ADD ADDITIONAL GUEST. " <guest> <reservationID>
 
