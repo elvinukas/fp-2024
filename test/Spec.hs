@@ -15,11 +15,11 @@ main :: IO ()
 main = defaultMain tests
 
 tests :: TestTree
-tests = testGroup "Tests" [unitTests]
---tests = testGroup "Tests" [unitTests, propertyTests]
+--tests = testGroup "Tests" [unitTests]
+tests = testGroup "Tests" [unitTests, propertyTests]
 
 unitTests :: TestTree
-unitTests = testGroup "Lib1 tests"
+unitTests = testGroup "Lib1 / Lib2 tests"
   [ testCase "List of completions is not empty" $
       null Lib1.completions @?= False,
     testCase "Parsing basic hotel variant" $
@@ -91,3 +91,9 @@ unitTests = testGroup "Lib1 tests"
                               result @?= Right (Just "Guest added successfully!", finalState))
 
     ]
+
+propertyTests :: TestTree
+propertyTests = testGroup "Lib3 tests"
+  [
+    
+  ]

@@ -1,0 +1,4 @@
+BEGIN
+ADD. HOTEL: Rytas. FLOOR: 1. ROOM: 10. 
+ADD. HOTEL: Braske. FLOOR: 10. ROOM: 101. 
+END

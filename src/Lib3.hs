@@ -160,9 +160,9 @@ marshallState finalState =
 -- for all s: parseStatements (renderStatements s) == Right(s, "")
 renderStatements :: Statements -> String
 renderStatements (Single query) =
-  "START\n" ++ genQuery query ++ ".\nEND"
+  "BEGIN\n" ++ genQuery query ++ "\nEND"
 renderStatements (Batch queries) =
-  "START\n" ++ unlines (map (\q -> genQuery q ++ ".") queries) ++ "END" 
+  "BEGIN\n" ++ unlines (map (\q -> genQuery q) queries) ++ "END" 
 
 
 genQuery :: Lib2.Query -> String
