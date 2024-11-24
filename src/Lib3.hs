@@ -10,8 +10,8 @@ module Lib3
     renderStatements
     ) where
 
-import Control.Concurrent ( Chan , readChan, writeChan )
-import Control.Concurrent.STM(STM, TVar)
+import Control.Concurrent ( Chan , readChan, writeChan, newChan )
+import Control.Concurrent.STM(STM, TVar, atomically, readTVarIO, readTVar, writeTVar)
 import qualified Lib2
 import Data.Char (isSpace)
 import Data.List (isPrefixOf, notElem, (\\), intercalate)
@@ -156,85 +156,82 @@ marshallState finalState =
 -- for all s: parseStatements (renderStatements s) == Right(s, "")
 renderStatements :: Statements -> String
 renderStatements (Single query) =
-  "START\n" ++ renderQuery query ++ ".\nEND"
+  "START\n" ++ genQuery query ++ ".\nEND"
 renderStatements (Batch queries) =
-  "START\n" ++ unlines (map (\q -> renderQuery q ++ ".") queries) ++ "END" 
+  "START\n" ++ unlines (map (\q -> genQuery q ++ ".") queries) ++ "END" 
 
 
-renderQuery :: Lib2.Query -> String
-renderQuery (Add hotel) =
-  "ADD. " ++ renderHotel hotel
-renderQuery (Lib2.Remove id) =
+genQuery :: Lib2.Query -> String
+genQuery (Add hotel) =
+  "ADD. " ++ genHotel hotel
+genQuery (Lib2.Remove id) =
   "REMOVE. " ++ show id
-renderQuery (Lib2.MakeReservation guest hotel checkIn checkOut price) =
-  "MAKE RESERVATION. " ++ renderGuest guest ++ renderHotel hotel ++
-  renderCheckIn checkIn ++ renderCheckout checkOut ++ renderPrice price
-renderQuery (Lib2.CancelReservation id) =
+genQuery (Lib2.MakeReservation guest hotel checkIn checkOut price) =
+  "MAKE RESERVATION. " ++ genGuest guest ++ genHotel hotel ++
+  genCheckIn checkIn ++ genCheckout checkOut ++ genPrice price
+genQuery (Lib2.CancelReservation id) =
   "CANCEL RESERVATION. " ++ show id
-renderQuery (Lib2.AddAdditionalGuest guest id) =
-  "ADD ADDITIONAL GUEST. " ++ renderGuest guest ++ show id
-renderQuery (Lib2.ListState) =
+genQuery (Lib2.AddAdditionalGuest guest id) =
+  "ADD ADDITIONAL GUEST. " ++ genGuest guest ++ show id
+genQuery (Lib2.ListState) =
   "List of the current state..."
 
 
-renderHotel :: Lib2.Hotel -> String
-renderHotel (Lib2.Hotel {Lib2.hotelName, Lib2.hotelChain, Lib2.floors}) =
+genHotel :: Lib2.Hotel -> String
+genHotel (Lib2.Hotel {Lib2.hotelName, Lib2.hotelChain, Lib2.floors}) =
   "HOTEL: " ++ hotelName ++ ". " ++
-  renderChain hotelChain ++
-  renderFloors floors
+  genChain hotelChain ++
+  genFloors floors
 
-renderChain :: [Lib2.Hotel] -> String
-renderChain [] = ""
-renderChain (hotel:hotels) =
-  "CHAIN OF. " ++ renderHotel hotel ++ renderChain hotels
+genChain :: [Lib2.Hotel] -> String
+genChain [] = ""
+genChain (hotel:hotels) =
+  "CHAIN OF. " ++ genHotel hotel ++ genChain hotels
 
-renderFloors :: [Lib2.Floor] -> String
-renderFloors [] = ""
-renderFloors floors =
-  concatMap renderFloor floors
+genFloors :: [Lib2.Floor] -> String
+genFloors [] = ""
+genFloors floors =
+  concatMap genFloor floors
 
-renderFloor (Lib2.Floor { Lib2.floorNumber, Lib2.rooms }) =
-  "FLOOR: " ++ show floorNumber ++ ". " ++ renderRooms rooms
+genFloor (Lib2.Floor { Lib2.floorNumber, Lib2.rooms }) =
+  "FLOOR: " ++ show floorNumber ++ ". " ++ genRooms rooms
 
-renderRooms :: [Lib2.Room] -> String
-renderRooms [] = ""
-renderRooms (room:rooms) =
-  renderRoom room ++ renderRooms rooms
+genRooms :: [Lib2.Room] -> String
+genRooms [] = ""
+genRooms (room:rooms) =
+  genRoom room ++ genRooms rooms
 
-renderRoom :: Lib2.Room -> String
-renderRoom room = 
+genRoom :: Lib2.Room -> String
+genRoom room = 
   "ROOM: " ++ show (Lib2.roomNumber room) ++ ". " ++
-  renderRoomSections (Lib2.roomSections room) ++
-  renderAmenities (Lib2.amenities room)
+  genRoomSections (Lib2.roomSections room) ++
+  genAmenities (Lib2.amenities room)
 
-renderRoomSections :: [Lib2.Room] -> String
-renderRoomSections [] = ""
-renderRoomSections (section:sections) =
-  "ROOM SECTION. " ++ renderRoom section ++
-  renderRoomSections sections
+genRoomSections :: [Lib2.Room] -> String
+genRoomSections [] = ""
+genRoomSections (section:sections) =
+  "ROOM SECTION. " ++ genRoom section ++
+  genRoomSections sections
 
-renderAmenities :: [Lib2.Amenity] -> String
-renderAmenities [] = ""
-renderAmenities amenities = "AMENITIES: " ++ intercalate ", " (map show amenities)
+genAmenities :: [Lib2.Amenity] -> String
+genAmenities [] = ""
+genAmenities amenities = "AMENITIES: " ++ intercalate ", " (map show amenities)
 
-renderGuest :: Lib2.Guest -> String
-renderGuest (Lib2.Guest{Lib2.guestName, Lib2.guestSurname}) = 
+genGuest :: Lib2.Guest -> String
+genGuest (Lib2.Guest{Lib2.guestName, Lib2.guestSurname}) = 
   "GUEST: " ++ guestName ++ " " ++ guestSurname ++ ". "
 
-renderCheckIn :: Lib2.CheckIn -> String
-renderCheckIn checkIn =
+genCheckIn :: Lib2.CheckIn -> String
+genCheckIn checkIn =
   "CHECK IN: " ++ show (Lib2.checkInDate checkIn) ++ " " ++ show (Lib2.checkOuttime checkIn) ++ ". "
 
-renderCheckout :: Lib2.CheckOut -> String
-renderCheckout checkOut =
+genCheckout :: Lib2.CheckOut -> String
+genCheckout checkOut =
   "CHECK OUT: " ++ show (Lib2.checkOutDate checkOut) ++ " " ++ show (Lib2.checkOutTime checkOut) ++ ". "
 
-renderPrice :: Lib2.Price -> String
-renderPrice (Lib2.Price price) =
+genPrice :: Lib2.Price -> String
+genPrice (Lib2.Price price) =
   "PRICE: " ++ show price ++ ". "
-
-  
-
 
 
 -- | Updates a state according to a command.
@@ -248,5 +245,61 @@ renderPrice (Lib2.Price price) =
 -- Right contains an optional message to print, updated state
 -- is stored in transactinal variable
 stateTransition :: TVar Lib2.State -> Command -> Chan StorageOp ->
-                   IO (Either String (Maybe String))
-stateTransition _ _ ioChan = return $ Left "Not implemented 6"
+            IO (Either String (Maybe String, Lib2.State))
+stateTransition stateVar command ioChan = case command of
+  LoadCommand -> do
+    loadChan <- newChan
+    writeChan ioChan (Load loadChan)
+    info <- readChan loadChan
+    case parseStatements info of
+      Right (statements, _) -> atomically $ do
+        initialState <- readTVar stateVar
+        case statements of
+          Batch queries -> do
+            let applyQueries = foldl (\stateRes query -> case stateRes of
+                  Right state -> case Lib2.stateTransition state query of
+                    Right (_, newState) -> Right newState
+                    Left err -> Left err
+                  Left err -> Left err) (Right initialState) queries
+            case applyQueries of
+              Right newState -> do
+                writeTVar stateVar newState
+                return $ Right (Just "Loading was successful.", newState)
+              Left err -> return $ Left ("Error applying queries: " ++ err)
+          Single query -> do
+            case Lib2.stateTransition initialState query of
+              Right (_, newState) -> do
+                writeTVar stateVar newState
+                return $ Right (Just "Loading was successful.", newState)
+              Left err -> return $ Left ("Error applying query: " ++ err)
+      Left err -> return $ Left ("Error parsing statements: " ++ err)
+            
+
+  SaveCommand -> do
+    currentState <- readTVarIO stateVar
+    let state = renderStatements (marshallState currentState)
+    saveChan <- newChan
+    writeChan ioChan (Save state saveChan)
+    _ <- readChan saveChan
+    return $ Right (Just "State saving was successful.", currentState)
+
+  StatementCommand statements -> atomically $ do
+    currentState <- readTVar stateVar
+    case statements of
+      Batch queries -> do
+        let applyQueries = foldl (\stateRes query -> case stateRes of
+              Right state -> case Lib2.stateTransition state query of
+                Right (_, newState) -> Right newState
+                Left err -> Left err
+              Left err -> Left err) (Right currentState) queries
+        case applyQueries of
+          Right newState -> do
+            writeTVar stateVar newState
+            return $ Right (Just "Statements executed successfully.", newState)
+          Left err -> return $ Left ("Error executing statements: " ++ err)
+      Single query -> do
+        case Lib2.stateTransition currentState query of
+          Right (_, newState) -> do
+            writeTVar stateVar newState
+            return $ Right (Just "Statement executed successfully.", newState)
+          Left err -> return $ Left ("Error executing statement: " ++ err)
