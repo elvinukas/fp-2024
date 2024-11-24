@@ -13,7 +13,7 @@ import Control.Concurrent ( Chan , readChan, writeChan )
 import Control.Concurrent.STM(STM, TVar)
 import qualified Lib2
 import Data.Char (isSpace)
-import Data.List (isPrefixOf)
+import Data.List (isPrefixOf, notElem, (\\))
 import Lib2 (Query(Add))
 
 data StorageOp = Save String (Chan ()) | Load (Chan String)
@@ -112,10 +112,44 @@ parseBatch input =
 -- | Converts program's state into Statements
 -- (probably a batch, but might be a single query)
 
--- here optimizations for the states also take place
+-- as far as I understand it, we take some type of state and we try to get the exact state using the least amount of queries possible
+-- the signature could be changed to support transitions from some state to another (instead of empty state to final state)
 marshallState :: Lib2.State -> Statements
-marshallState state =
+marshallState finalState =
   let
+    emptyState = Lib2.emptyState
+
+    findAdded :: [Lib2.AvailableHotelEntity] -> [Lib2.AvailableHotelEntity] -> [Lib2.AvailableHotelEntity]
+    findAdded initial final = final \\ initial -- in final state but not in initial
+
+    -- non-empty state might be added
+    findRemoved :: [Lib2.AvailableHotelEntity] -> [Lib2.AvailableHotelEntity] -> [Lib2.AvailableHotelEntity]
+    findRemoved initial final = initial \\ final -- in initial state but not in final
+
+    addHotelsQueries :: [Lib2.AvailableHotelEntity] -> [Lib2.Query]
+    addHotelsQueries = map (\hotel -> Add (Lib2.availableHotel hotel))
+
+    removeHotelQueries :: [Lib2.AvailableHotelEntity] -> [Lib2.Query]
+    removeHotelQueries = map (\hotel -> Lib2.Remove (Lib2.availableEntityId hotel)) 
+
+    -- | finding the actual queries
+
+    addedHotels = findAdded (Lib2.availableHotelEntities emptyState) (Lib2.availableHotelEntities finalState)
+    removedHotels = findRemoved (Lib2.availableHotelEntities emptyState) (Lib2.availableHotelEntities finalState)
+
+    addQueries = addHotelsQueries addedHotels
+    removeQueries = removeHotelQueries removedHotels
+
+    finalQueries = addQueries ++ removeQueries
+
+  in
+    case finalQueries of
+      [query] -> Single query
+      queries -> Batch queries
+
+
+
+
     
 
 

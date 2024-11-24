@@ -16,6 +16,7 @@ module Lib2
     CheckOut(..),
     Price(..),
     Reservation(..),
+    AvailableHotelEntity(..),
     parseQuery,
     emptyState,
     stateTransition,
