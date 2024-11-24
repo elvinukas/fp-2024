@@ -20,6 +20,8 @@ module Lib2
     parseQuery,
     emptyState,
     stateTransition,
+    formatHotel,
+    formatReservation
 
     ) where
 
@@ -99,19 +101,28 @@ instance Eq Query where
   (==) _ _= False
 
 instance Show Lib2.Query where
-  show (Add hotel) = "Add hotel: " ++ formatHotelDetails hotel
+  show (Add hotel) = "Added hotel: \n" ++ formatHotelDetails hotel
   show (Remove (ID id)) = "Remove hotel with ID: " ++ show id
   show (MakeReservation guest hotel checkIn checkOut price) =
-    "Make reservation for guest: " ++ formatGuest guest ++
-    " at hotel: " ++ formatHotelDetails hotel ++
-    " from " ++ formatCheckIn checkIn ++
-    " to " ++ formatCheckOut checkOut ++
-    " with price: " ++ formatPrice price
+    "Make reservation for guest: \n" ++ formatGuest guest ++
+    " at hotel: \n" ++ formatHotelDetails hotel ++
+    " from \n" ++ formatCheckIn checkIn ++
+    " to \n" ++ formatCheckOut checkOut ++
+    " with price: \n" ++ formatPrice price
   show (CancelReservation (ID id)) = "Cancel reservation with ID: " ++ show id
   show (AddAdditionalGuest guest (ID id)) =
-    "Add additional guest: " ++ formatGuest guest ++
+    "Add additional guest: \n" ++ formatGuest guest ++
     " to reservation with ID: " ++ show id
   show ListState = "List current state"
+
+
+stateToString :: State -> String
+stateToString st =
+  let reservationsList = map formatReservation (reservations st) -- converting reservations to string format
+      hotelsList = map formatHotel (availableHotelEntities st)
+  in "Reservations: \n" ++ unlines reservationsList ++
+     "\nAvailable hotels/hotel rooms:\n" ++ unlines hotelsList
+
   
   
 -- After all query entries are converted into seperate lines, parse them as seperate inputs
@@ -650,7 +661,10 @@ data AvailableHotelEntity = AvailableHotelEntity {
 data State = State {
   reservations :: [Reservation],
   availableHotelEntities :: [AvailableHotelEntity]
-} deriving (Show, Eq)
+} deriving (Eq)
+
+instance Show Lib2.State where
+  show = stateToString
 
 -- | Creates an initial program's state.
 -- It is called once when the program starts.

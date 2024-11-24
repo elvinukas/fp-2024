@@ -15,7 +15,7 @@ import Control.Concurrent.STM(STM, TVar, atomically, readTVarIO, readTVar, write
 import qualified Lib2
 import Data.Char (isSpace)
 import Data.List (isPrefixOf, notElem, (\\), intercalate)
-import Lib2 (Query(Add))
+import Lib2 (Query(Add), formatHotel, formatReservation)
 
 data StorageOp = Save String (Chan ()) | Load (Chan String)
 -- | This function is started from main
@@ -73,6 +73,7 @@ parseCommand :: String -> Either String (Command, String)
 parseCommand input
   | trim input == "LOAD" = Right (LoadCommand, "")
   | trim input == "SAVE" = Right (SaveCommand, "")
+  | trim input == "LIST" = Right (StatementCommand (Single Lib2.ListState), "")
   | otherwise = case parseStatements (trim input) of
         Left err -> Left err
         Right (statements, rest) -> Right (StatementCommand statements, rest)
@@ -101,12 +102,12 @@ parseBatch :: String -> Either String ([Lib2.Query], String)
 parseBatch input = do
   let lines' = lines input  -- split into lines
   let (queryLines, rest) = break (== "END") lines'  -- split at END
-  
+
   -- removing empty lines, begin and end markers
-  let cleanedQueries = filter (\line -> not (null (trim line)) 
-                                   && line /= "BEGIN" 
+  let cleanedQueries = filter (\line -> not (null (trim line))
+                                   && line /= "BEGIN"
                                    && line /= "END") queryLines
-  
+
   -- parsing each line
   case mapM Lib2.parseQuery cleanedQueries of
     Right queries -> Right (queries, unlines (drop 1 rest))  -- drop 1 to skip the END line
@@ -135,7 +136,7 @@ marshallState finalState =
     addHotelsQueries = map (\hotel -> Add (Lib2.availableHotel hotel))
 
     removeHotelQueries :: [Lib2.AvailableHotelEntity] -> [Lib2.Query]
-    removeHotelQueries = map (\hotel -> Lib2.Remove (Lib2.availableEntityId hotel)) 
+    removeHotelQueries = map (\hotel -> Lib2.Remove (Lib2.availableEntityId hotel))
 
     -- | finding the actual queries
 
@@ -162,7 +163,7 @@ renderStatements :: Statements -> String
 renderStatements (Single query) =
   "BEGIN\n" ++ genQuery query ++ "\nEND"
 renderStatements (Batch queries) =
-  "BEGIN\n" ++ unlines (map (\q -> genQuery q) queries) ++ "END" 
+  "BEGIN\n" ++ unlines (map genQuery queries) ++ "END"
 
 
 genQuery :: Lib2.Query -> String
@@ -178,8 +179,16 @@ genQuery (Lib2.CancelReservation id) =
 genQuery (Lib2.AddAdditionalGuest guest id) =
   "ADD ADDITIONAL GUEST. " ++ genGuest guest ++ show id
 genQuery (Lib2.ListState) =
-  "List of the current state..."
-
+  let
+    formatState state = 
+      "Available Hotels:\n" ++
+      unlines (map Lib2.formatHotel (Lib2.availableHotelEntities state)) ++
+      "\nReservations:\n" ++
+      if null (Lib2.reservations state)
+        then "No active reservations.\n"
+        else unlines (map formatReservation (Lib2.reservations state))
+  in
+    formatState (Lib2.emptyState)
 
 genHotel :: Lib2.Hotel -> String
 genHotel (Lib2.Hotel {Lib2.hotelName, Lib2.hotelChain, Lib2.floors}) =
@@ -206,7 +215,7 @@ genRooms (room:rooms) =
   genRoom room ++ genRooms rooms
 
 genRoom :: Lib2.Room -> String
-genRoom room = 
+genRoom room =
   "ROOM: " ++ show (Lib2.roomNumber room) ++ ". " ++
   genRoomSections (Lib2.roomSections room) ++
   genAmenities (Lib2.amenities room)
@@ -222,7 +231,7 @@ genAmenities [] = ""
 genAmenities amenities = "AMENITIES: " ++ intercalate ", " (map show amenities)
 
 genGuest :: Lib2.Guest -> String
-genGuest (Lib2.Guest{Lib2.guestName, Lib2.guestSurname}) = 
+genGuest (Lib2.Guest{Lib2.guestName, Lib2.guestSurname}) =
   "GUEST: " ++ guestName ++ " " ++ guestSurname ++ ". "
 
 genCheckIn :: Lib2.CheckIn -> String
@@ -274,10 +283,10 @@ stateTransition stateVar command ioChan = case command of
             case Lib2.stateTransition initialState query of
               Right (_, newState) -> do
                 writeTVar stateVar newState
-                return $ Right (Just "Loading was successful.", show newState)
+                return $ Right (Just "Loading was successful.", show query)
               Left err -> return $ Left ("Error applying query: " ++ err)
       Left err -> return $ Left ("Error parsing statements: " ++ err)
-            
+
 
   SaveCommand -> do
     currentState <- readTVarIO stateVar
