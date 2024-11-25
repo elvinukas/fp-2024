@@ -45,7 +45,11 @@ data Query =
 
 
 newtype ID = ID Int
-  deriving (Show, Eq)
+  deriving (Eq)
+
+instance Show Lib2.ID where
+  show (ID id) = show id
+
 
 data Guest = Guest{
   guestName :: String,
@@ -72,17 +76,26 @@ data Room = Room {
 data Amenity = TV | WiFi | Minibar | Balcony | AC | Unknown
   deriving (Show, Eq)
 
-data Date = Date { year :: Int, month :: Int, day :: Int} deriving (Show, Eq)
+data Date = Date { year :: Int, month :: Int, day :: Int} deriving (Eq)
+instance Show Lib2.Date where
+  show (Date year month day) = show year ++ "-" ++ show month ++ "-" ++ show day
 
 data Time = Time {
   hour :: Int,
   minute :: Int
-} deriving (Show, Eq)
+} deriving (Eq)
+
+instance Show Lib2.Time where
+  show (Time h m) = show h ++ ":" ++ show m
 
 data CheckIn = CheckIn {
   checkInDate :: Date,
   checkOuttime :: Time
-} deriving (Show, Eq)
+} deriving (Eq)
+
+instance Show Lib2.CheckIn where
+  show (CheckIn d t) = show d ++ show t
+
 
 data CheckOut = CheckOut {
   checkOutDate :: Date,
@@ -90,7 +103,11 @@ data CheckOut = CheckOut {
 } deriving (Show, Eq)
 
 data Price = Price Int
-  deriving (Show, Eq)
+  deriving (Eq)
+
+instance Show Lib2.Price where
+  show (Price p) = show p
+
 
 
 -- | Parser type
@@ -558,7 +575,7 @@ parseGuest input =
 -- <check_in> ::= "CHECK IN: " <date> " " <time> ". "
 parseCheckIn :: Parser CheckIn
 parseCheckIn input = 
-  trace ("Parsing CheckIn from input: " ++ input) $
+  --trace ("Parsing CheckIn from input: " ++ input) $
   case parseKeyword "CHECK IN: " input of
     Right (line, rest) ->
       let parts = words (drop (length "CHECK IN: ") line)

@@ -14,7 +14,7 @@ import Control.Concurrent ( Chan , readChan, writeChan, newChan )
 import Control.Concurrent.STM(STM, TVar, atomically, readTVarIO, readTVar, writeTVar)
 import qualified Lib2
 import Data.Char (isSpace)
-import Data.List (isPrefixOf, notElem, (\\), intercalate)
+import Data.List (isPrefixOf, notElem, (\\), intercalate, find, delete)
 import Lib2 (Query(Add), formatHotel, formatReservation)
 
 data StorageOp = Save String (Chan ()) | Load (Chan String)
@@ -95,7 +95,6 @@ parseStatements input =
     Left err -> Left err
 
 
-
 -- | parses a batch of queries if there are any
 
 parseBatch :: String -> Either String ([Lib2.Query], String)
@@ -138,6 +137,10 @@ marshallState finalState =
     removeHotelQueries :: [Lib2.AvailableHotelEntity] -> [Lib2.Query]
     removeHotelQueries = map (\hotel -> Lib2.Remove (Lib2.availableEntityId hotel))
 
+    -- don't care about the other entries
+    makeReservationQueries :: [Lib2.Reservation] -> [Lib2.Query]
+    makeReservationQueries = map (\res -> Lib2.MakeReservation (head (Lib2.guests res)) (Lib2.reservationID res) (Lib2.checkIn res) (Lib2.checkOut res) (Lib2.price res))
+
     -- | finding the actual queries
 
     addedHotels = findAdded (Lib2.availableHotelEntities emptyState) (Lib2.availableHotelEntities finalState)
@@ -145,8 +148,23 @@ marshallState finalState =
 
     addQueries = addHotelsQueries addedHotels
     removeQueries = removeHotelQueries removedHotels
+    reservationQueries = makeReservationQueries (Lib2.reservations finalState)
 
-    finalQueries = addQueries ++ removeQueries
+    combinedQueries = addQueries ++ removeQueries ++ reservationQueries
+
+    isCancelled :: Lib2.Query -> Lib2.Query -> Bool
+    isCancelled (Lib2.MakeReservation _ id1 _ _ _) (Lib2.Remove id2) = id1 == id2
+  --isCancelled (Lib2.Remove id1) (Lib2.MakeReservation _ id2 _ _ _) = id1 == id2
+    isCancelled _ _ = False
+
+    filterCancelled :: [Lib2.Query] -> [Lib2.Query]
+    filterCancelled [] = []
+    filterCancelled (q:qs) =
+      case find (isCancelled q) qs of 
+        Just matchingQuery -> filterCancelled (delete matchingQuery qs)
+        Nothing -> q : filterCancelled qs
+      
+    finalQueries = filterCancelled combinedQueries
 
   in
     case finalQueries of
@@ -170,14 +188,14 @@ genQuery :: Lib2.Query -> String
 genQuery (Add hotel) =
   "ADD. " ++ genHotel hotel
 genQuery (Lib2.Remove id) =
-  "REMOVE. " ++ show id
+  "REMOVE. " ++ show id ++ ". "
 genQuery (Lib2.MakeReservation guest id checkIn checkOut price) =
-  "MAKE RESERVATION. " ++ genGuest guest ++ show id ++
+  "MAKE RESERVATION. " ++ genGuest guest ++ show id ++ ". " ++
   genCheckIn checkIn ++ genCheckout checkOut ++ genPrice price
 genQuery (Lib2.CancelReservation id) =
-  "CANCEL RESERVATION. " ++ show id
+  "CANCEL RESERVATION. " ++ show id ++ ". "
 genQuery (Lib2.AddAdditionalGuest guest id) =
-  "ADD ADDITIONAL GUEST. " ++ genGuest guest ++ show id
+  "ADD ADDITIONAL GUEST. " ++ genGuest guest ++ show id ++ ". "
 genQuery (Lib2.ListState) =
   let
     formatState state = 
