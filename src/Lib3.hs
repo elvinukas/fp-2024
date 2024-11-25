@@ -201,7 +201,7 @@ genQuery (Lib2.ListState) =
     formatState state = 
       "Available Hotels:\n" ++
       unlines (map Lib2.formatHotel (Lib2.availableHotelEntities state)) ++
-      "\nReservations:\n" ++
+      "\n------------------------\nReservations:\n" ++
       if null (Lib2.reservations state)
         then "No active reservations.\n"
         else unlines (map formatReservation (Lib2.reservations state))
@@ -235,8 +235,9 @@ genRooms (room:rooms) =
 genRoom :: Lib2.Room -> String
 genRoom room =
   "ROOM: " ++ show (Lib2.roomNumber room) ++ ". " ++
-  genRoomSections (Lib2.roomSections room) ++
-  genAmenities (Lib2.amenities room)
+  genAmenities (Lib2.amenities room) ++
+  genRoomSections (Lib2.roomSections room)
+ 
 
 genRoomSections :: [Lib2.Room] -> String
 genRoomSections [] = ""
@@ -246,7 +247,7 @@ genRoomSections (section:sections) =
 
 genAmenities :: [Lib2.Amenity] -> String
 genAmenities [] = ""
-genAmenities amenities = "AMENITIES: " ++ intercalate ", " (map show amenities)
+genAmenities amenities = "AMENITIES: " ++ intercalate ", " (map show amenities) ++ ". "
 
 genGuest :: Lib2.Guest -> String
 genGuest (Lib2.Guest{Lib2.guestName, Lib2.guestSurname}) =

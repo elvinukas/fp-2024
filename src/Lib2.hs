@@ -139,7 +139,7 @@ stateToString st =
   let reservationsList = map formatReservation (reservations st) -- converting reservations to string format
       hotelsList = map formatHotel (availableHotelEntities st)
   in "Reservations: \n" ++ unlines reservationsList ++
-     "\nAvailable hotels/hotel rooms:\n" ++ unlines hotelsList
+     "\n----------------------------\nAvailable hotels/hotel rooms:\n" ++ unlines hotelsList
 
   
   
@@ -756,9 +756,11 @@ formatHotelDetails :: Hotel -> String
 formatHotelDetails (Hotel name chain floors) =
   "Hotel Name: " ++ name ++ "\n" ++
   (if null chain
-    then "Hotel Chain: None\n"
+    then ""
     else "Hotel Chain: \n" ++ unlines (map formatHotelDetails chain)) ++
-  "Floors:\n" ++ unlines (map formatFloor floors)
+  (if null floors
+    then ""
+    else "Floors:\n" ++ unlines (map formatFloor floors))
 
 formatFloor :: Floor -> String
 formatFloor (Floor number rooms) =
