@@ -77,6 +77,7 @@ parseCommand :: String -> Either String (Command, String)
 parseCommand input
   | trim input == "LOAD" = Right (LoadCommand, "")
   | trim input == "SAVE" = Right (SaveCommand, "")
+  | trim input == "LIST" = Right (StatementCommand (Batch [Lib2.ListState]), "")
   | otherwise = case parseStatements (trim input) of
         Left err -> Left err
         Right (statements, rest) -> Right (StatementCommand statements, rest)
