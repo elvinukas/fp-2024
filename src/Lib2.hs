@@ -118,20 +118,8 @@ type Parser a = String -> Either String (a, String)
 instance Eq Query where
   (==) _ _= False
 
-instance Show Lib2.Query where
-  show (Add (ID id) hotel) = "Added hotel: \n" ++ show id ++ " " ++ formatHotelDetails hotel
-  show (Remove (ID id)) = "Remove hotel with ID: " ++ show id
-  show (MakeReservation guest (ID id) checkIn checkOut price) =
-    "Make reservation for guest: \n" ++ formatGuest guest ++
-    " at hotel with id: \n" ++ show id ++
-    " from \n" ++ formatCheckIn checkIn ++
-    " to \n" ++ formatCheckOut checkOut ++
-    " with price: \n" ++ formatPrice price
-  show (CancelReservation (ID id)) = "Cancel reservation with ID: " ++ show id
-  show (AddAdditionalGuest guest (ID id)) =
-    "Add additional guest: \n" ++ formatGuest guest ++
-    " to reservation with ID: " ++ show id
-  show ListState = "List current state"
+-- instance Show Lib2.Query where
+--   show query = 
 
 
 stateToString :: State -> String

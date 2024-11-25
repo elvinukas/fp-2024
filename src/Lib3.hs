@@ -8,7 +8,9 @@ module Lib3
   parseStatements,
   marshallState,
   renderStatements,
-  Statements(..)
+  genQuery,
+  Statements(..),
+  Command(..)
   ) where
 
 import Control.Concurrent ( Chan , readChan, writeChan, newChan )
@@ -17,6 +19,9 @@ import qualified Lib2
 import Data.Char (isSpace)
 import Data.List (isPrefixOf, notElem, (\\), intercalate, find, delete)
 import Lib2 (Query(Add), formatHotel, formatReservation)
+
+instance Show Lib2.Query where
+  show = genQuery 
 
 data StorageOp = Save String (Chan ()) | Load (Chan String)
 -- | This function is started from main
@@ -42,16 +47,13 @@ storageOpLoop chan = loop
 
 data Statements = Batch [Lib2.Query] |
                Single Lib2.Query
-               deriving (Show, Eq)
+               deriving (Eq)
 
-
--- instance Show Statements where
---   show (Batch queries) =
---     "Queries:\n" ++ unlines (map show queries)
-
---   show (Single query) =
---     "Single query:\n" ++ show query
-
+instance Show Statements where
+  show (Single query) = "BEGIN\n" ++ genQuery query ++ "END"  
+  show (Batch queries) =
+    "BEGIN\n" ++ unlines (map genQuery queries) ++ "END"  
+  
 data Command = StatementCommand Statements |
                LoadCommand |
                SaveCommand

@@ -1,7 +1,10 @@
 {-# LANGUAGE ImportQualifiedPost #-}
-import Test.Tasty ( TestTree, defaultMain, testGroup )
-import Test.Tasty.HUnit ( testCase, (@?=), assertFailure )
+{-# LANGUAGE InstanceSigs #-}
+import Test.Tasty ( TestTree, defaultMain, testGroup, )
+import Test.Tasty.HUnit ( testCase, (@?=), assertFailure)
 import Test.Tasty.QuickCheck as QC
+import Test.Tasty.QuickCheck (Arbitrary, arbitrary, oneof, vectorOf)
+
 
 import Data.List
 import Data.Ord
@@ -10,12 +13,13 @@ import Data.Either (isRight)
 
 import Lib1 qualified
 import Lib2 qualified
+import Lib3 qualified
 
 main :: IO ()
 main = defaultMain tests
 
 tests :: TestTree
---tests = testGroup "Tests" [unitTests]
+--  tests = testGroup "Tests" [unitTests]
 tests = testGroup "Tests" [unitTests, propertyTests]
 
 unitTests :: TestTree
@@ -23,16 +27,16 @@ unitTests = testGroup "Lib1 / Lib2 tests"
   [ testCase "List of completions is not empty" $
       null Lib1.completions @?= False,
     testCase "Parsing basic hotel variant" $
-      isRight (Lib2.parseQuery "ADD. HOTEL: Grand. FLOOR: 1. ROOM: 101. ") @?= True,
+      isRight (Lib2.parseQuery "ADD. 1. HOTEL: Grand. FLOOR: 1. ROOM: 101. ") @?= True,
     testCase "Parsing incorrect variant" $
       Lib2.parseQuery "ADD. " @?= (Left "Expected a dot (end of query operation), but got end of input., Expected a dot (end of query operation), but got end of input., Expected a dot (end of query operation), but got end of input."),
     testCase "Parsing add hotel variant with chains and amenities" $
-      isRight (Lib2.parseQuery "ADD. HOTEL: Grand. FLOOR: 1. ROOM: 101. AMENITIES: TV, AC, WiFi. ") @?= True,
+      isRight (Lib2.parseQuery "ADD. 1. HOTEL: Grand. FLOOR: 1. ROOM: 101. AMENITIES: TV, AC, WiFi. ") @?= True,
     testCase "Testing adding and removing hotel variant" $ do
       
       let initialState = Lib2.emptyState
 
-      case Lib2.parseQuery "ADD. HOTEL: Grand. FLOOR: 1. ROOM: 101. " of
+      case Lib2.parseQuery "ADD. 1. HOTEL: Grand. FLOOR: 1. ROOM: 101. " of
         Left err -> assertFailure $ "Failed to parse 'ADD' query: " ++ err
         Right addQuery -> 
           case Lib2.stateTransition initialState addQuery of
@@ -47,7 +51,7 @@ unitTests = testGroup "Lib1 / Lib2 tests"
     testCase "Testing adding and making a reservation on a hotel room" $ do
       let initialState = Lib2.emptyState
       
-      case Lib2.parseQuery "ADD. HOTEL: Grand. FLOOR: 1. ROOM: 101. " of
+      case Lib2.parseQuery "ADD. 1. HOTEL: Grand. FLOOR: 1. ROOM: 101. " of
         Left err -> assertFailure $ "Failed to parse 'ADD' query: " ++ err
         Right addQuery ->
           case Lib2.stateTransition initialState addQuery of
@@ -66,7 +70,7 @@ unitTests = testGroup "Lib1 / Lib2 tests"
     testCase "Testing making a reservation and then adding an additional guest" $ do
       let initialState = Lib2.emptyState
       
-      case Lib2.parseQuery "ADD. HOTEL: Grand. FLOOR: 1. ROOM: 101. " of
+      case Lib2.parseQuery "ADD. 1. HOTEL: Grand. FLOOR: 1. ROOM: 101. " of
         Left err -> assertFailure $ "Failed to parse 'ADD' query: " ++ err
         Right addQuery ->
           case Lib2.stateTransition initialState addQuery of
@@ -91,9 +95,59 @@ unitTests = testGroup "Lib1 / Lib2 tests"
                               result @?= Right (Just "Guest added successfully!", finalState))
 
     ]
-
-propertyTests :: TestTree
-propertyTests = testGroup "Lib3 tests"
-  [
     
+
+-- | Property testing.
+propertyTests :: TestTree
+propertyTests = testGroup "Property tests"
+  [ testProperty "Checking if rendering statement and parsing it back gives the original statement" $
+      let statement = Lib3.Single (Lib2.Add (Lib2.ID 1) (Lib2.Hotel "Grand" [] [Lib2.Floor 1 [Lib2.Room 101 [] []]]))
+          renderedStatements = Lib3.renderStatements statement
+          parsedStatements = Lib3.parseStatements renderedStatements
+      in counterexample
+          ("renderedStatements: " ++ renderedStatements ++ "\nparsedStatements: " ++ show parsedStatements)
+            (case parsedStatements of
+              Right (parsedStmt, "") -> renderedStatements == show parsedStmt
+              _ -> False)
+          
+  , testProperty "Parsing and rendering preserves strings (if valid)" $
+      let str = "ADD. 1. HOTEL: Grand. FLOOR: 1. ROOM: 101. "
+          parsed = Lib3.parseStatements str
+          rendered = case parsed of
+            Right (stmt, "") -> Lib3.renderStatements stmt
+            _ -> ""
+      in counterexample
+          ("Original: " ++ str ++ "\nRendered: " ++ rendered)
+          (case Lib3.parseStatements rendered of
+              Right parsedResult -> parsed == Right parsedResult
+              Left _ -> False)
   ]
+
+
+-- propertyTests :: TestTree
+-- propertyTests = testGroup "Property tests"
+--   [ testProperty "Checking if rendering statement and parsing it back gives the original statement" $ \statement ->
+--      let renderedStatements = Lib3.renderStatements statement
+--          parsedStatements = Lib3.parseStatements renderedStatements
+--      in counterexample -- counterexample, check for all other statements if the counter example is true.
+--         ("Rendered: " ++ renderedStatements ++ "\nParsed: " ++ show parsedStatements)
+--         (parsedStatements == Right (statement, ""))
+
+--   , testProperty "Parsing and rendering preserves strings (if valid)" $ \str ->
+--     let parsed = Lib3.parseStatements str
+--         rendered = case parsed of
+--           Right (stmt, "") -> Lib3.renderStatements stmt
+--           _ -> ""
+--     in counterexample
+--         ("Original: " ++ str ++ "\nRendered: " ++ rendered)
+--         (case Lib3.parseStatements rendered of
+--             Right parsedResult -> parsed == Right parsedResult
+--             Left _ -> False)
+--   ]
+
+
+
+
+
+
+
