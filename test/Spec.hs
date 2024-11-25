@@ -29,7 +29,7 @@ unitTests = testGroup "Lib1 / Lib2 tests"
     testCase "Parsing basic hotel variant" $
       isRight (Lib2.parseQuery "ADD. 1. HOTEL: Grand. FLOOR: 1. ROOM: 101. ") @?= True,
     testCase "Parsing incorrect variant" $
-      Lib2.parseQuery "ADD. " @?= (Left "Expected a dot (end of query operation), but got end of input., Expected a dot (end of query operation), but got end of input., Expected a dot (end of query operation), but got end of input."),
+      Lib2.parseQuery "ADD. " @?= (Left "Expected an integer"),
     testCase "Parsing add hotel variant with chains and amenities" $
       isRight (Lib2.parseQuery "ADD. 1. HOTEL: Grand. FLOOR: 1. ROOM: 101. AMENITIES: TV, AC, WiFi. ") @?= True,
     testCase "Testing adding and removing hotel variant" $ do
@@ -110,40 +110,23 @@ propertyTests = testGroup "Property tests"
               Right (parsedStmt, "") -> renderedStatements == show parsedStmt
               _ -> False)
           
-  , testProperty "Parsing and rendering preserves strings (if valid)" $
-      let str = "ADD. 1. HOTEL: Grand. FLOOR: 1. ROOM: 101. "
-          parsed = Lib3.parseStatements str
-          rendered = case parsed of
-            Right (stmt, "") -> Lib3.renderStatements stmt
-            _ -> ""
+  , testProperty "Checking if rendering statement and parsing it back gives the original statement (harder)" $
+      let statements = Lib3.Batch
+            [ Lib2.Add (Lib2.ID 1) (Lib2.Hotel "Ausra" [] [Lib2.Floor 1 [Lib2.Room 101 [] []]])
+            , Lib2.Add (Lib2.ID 2) (Lib2.Hotel "Rytas" [] [Lib2.Floor 2 [Lib2.Room 202 [] []]])
+            , Lib2.MakeReservation (Lib2.Guest "Valdas" "Adamkus") (Lib2.ID 1) (Lib2.CheckIn (Lib2.Date 2022 02 20) (Lib2.Time 12 30))
+             (Lib2.CheckOut (Lib2.Date 2022 02 22) (Lib2.Time 13 30)) (Lib2.Price 500)
+            ]
+          renderedStatements = Lib3.renderStatements statements
+          parsedStatements = Lib3.parseStatements renderedStatements
       in counterexample
-          ("Original: " ++ str ++ "\nRendered: " ++ rendered)
-          (case Lib3.parseStatements rendered of
-              Right parsedResult -> parsed == Right parsedResult
-              Left _ -> False)
+          ("renderedStatements: " ++ renderedStatements ++ "\nparsedStatements: " ++ show parsedStatements)
+            (case parsedStatements of
+              Right (parsedStmt, "") -> renderedStatements == show parsedStmt
+              _ -> False)
+      
   ]
 
-
--- propertyTests :: TestTree
--- propertyTests = testGroup "Property tests"
---   [ testProperty "Checking if rendering statement and parsing it back gives the original statement" $ \statement ->
---      let renderedStatements = Lib3.renderStatements statement
---          parsedStatements = Lib3.parseStatements renderedStatements
---      in counterexample -- counterexample, check for all other statements if the counter example is true.
---         ("Rendered: " ++ renderedStatements ++ "\nParsed: " ++ show parsedStatements)
---         (parsedStatements == Right (statement, ""))
-
---   , testProperty "Parsing and rendering preserves strings (if valid)" $ \str ->
---     let parsed = Lib3.parseStatements str
---         rendered = case parsed of
---           Right (stmt, "") -> Lib3.renderStatements stmt
---           _ -> ""
---     in counterexample
---         ("Original: " ++ str ++ "\nRendered: " ++ rendered)
---         (case Lib3.parseStatements rendered of
---             Right parsedResult -> parsed == Right parsedResult
---             Left _ -> False)
---   ]
 
 
 
