@@ -741,8 +741,8 @@ stateTransition st query = case query of
     in Right (Just result, st)
 
 -- | Formatiing for the ListState.
-formatHotel :: AvailableHotelEntity -> String
 formatHotel (AvailableHotelEntity (ID id) hotel) =
+  --trace ("Formatting Hotel Entity: " ++ show entity) $
   "Hotel ID: " ++ show id ++ "\n" ++ formatHotelDetails hotel
 
 formatHotelDetails :: Hotel -> String

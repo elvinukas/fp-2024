@@ -103,6 +103,13 @@ Additional changes were required to Lib2.hs show instance in query, date, time, 
     >>> LOAD
     ```
 
+* `LIST` - lists the formatted state
+
+    Example:
+    ```
+    >>> LIST
+    ```
+
 * Batch queries
     
     Type `:paste` to enable batch-mode. Then, all queries must start with `BEGIN` and end with `END`.

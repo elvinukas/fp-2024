@@ -17,8 +17,9 @@ import Control.Concurrent ( Chan , readChan, writeChan, newChan )
 import Control.Concurrent.STM(STM, TVar, atomically, readTVarIO, readTVar, writeTVar)
 import qualified Lib2
 import Data.Char (isSpace)
-import Data.List (isPrefixOf, notElem, (\\), intercalate, find, delete)
+import Data.List (isPrefixOf, notElem, (\\), intercalate, find, delete, partition)
 import Lib2 (Query(Add), formatHotel, formatReservation)
+import Debug.Trace
 
 instance Show Lib2.Query where
   show = genQuery 
@@ -76,7 +77,6 @@ parseCommand :: String -> Either String (Command, String)
 parseCommand input
   | trim input == "LOAD" = Right (LoadCommand, "")
   | trim input == "SAVE" = Right (SaveCommand, "")
-  | trim input == "LIST" = Right (StatementCommand (Single Lib2.ListState), "")
   | otherwise = case parseStatements (trim input) of
         Left err -> Left err
         Right (statements, rest) -> Right (StatementCommand statements, rest)
@@ -89,6 +89,7 @@ parseCommand input
 parseStatements :: String -> Either String (Statements, String)
 parseStatements input =
   let trimmedInput = trim input in
+  trace ("Parsing input: " ++ show trimmedInput) $ 
   if "BEGIN" `isPrefixOf` trimmedInput
     then case parseBatch (drop (length "BEGIN") trimmedInput) of
       Right (queries, rest) -> Right (Batch queries, rest)
@@ -200,16 +201,7 @@ genQuery (Lib2.CancelReservation id) =
 genQuery (Lib2.AddAdditionalGuest guest id) =
   "ADD ADDITIONAL GUEST. " ++ genGuest guest ++ show id ++ ". "
 genQuery (Lib2.ListState) =
-  let
-    formatState state = 
-      "Available Hotels:\n" ++
-      unlines (map Lib2.formatHotel (Lib2.availableHotelEntities state)) ++
-      "\n------------------------\nReservations:\n" ++
-      if null (Lib2.reservations state)
-        then "No active reservations.\n"
-        else unlines (map formatReservation (Lib2.reservations state))
-  in
-    formatState (Lib2.emptyState)
+  "LIST"
 
 genHotel :: Lib2.Hotel -> String
 genHotel (Lib2.Hotel {Lib2.hotelName, Lib2.hotelChain, Lib2.floors}) =
@@ -319,22 +311,53 @@ stateTransition stateVar command ioChan = case command of
     return $ Right (Just "State saving was successful.", show currentState)
 
   StatementCommand statements -> atomically $ do
-    currentState <- readTVar stateVar
-    case statements of
-      Batch queries -> do
-        let applyQueries = foldl (\stateRes query -> case stateRes of
-              Right state -> case Lib2.stateTransition state query of
-                Right (_, newState) -> Right newState
-                Left err -> Left err
-              Left err -> Left err) (Right currentState) queries
-        case applyQueries of
-          Right newState -> do
-            writeTVar stateVar newState
-            return $ Right (Just "Statements executed successfully.", show newState)
-          Left err -> return $ Left ("Error executing statements: " ++ err)
-      Single query -> do
-        case Lib2.stateTransition currentState query of
-          Right (_, newState) -> do
-            writeTVar stateVar newState
-            return $ Right (Just "Statement executed successfully.", show newState)
-          Left err -> return $ Left ("Error executing statement: " ++ err)
+      currentState <- readTVar stateVar
+      case statements of
+        Batch queries -> do
+          -- querying by priority
+          let (addQueries, rest) = partition isAddQuery queries
+              (makeReservationQueries, rest') = partition isMakeReservationQuery rest
+              (removeQueries, rest'') = partition isRemoveQuery rest'
+              (cancelReservationQueries, addAdditionalGuestQueries) = partition isCancelReservationQuery rest''
+              orderedQueries = addQueries ++ makeReservationQueries ++ removeQueries ++ cancelReservationQueries ++ addAdditionalGuestQueries
+
+          -- applying the queries based on priority
+          let applyQueries = foldl (\stateRes query -> case stateRes of
+                Right state -> case Lib2.stateTransition state query of
+                  Right (_, newState) -> Right newState
+                  Left err -> Left err
+                Left err -> Left err) (Right currentState) orderedQueries
+
+          case applyQueries of
+            Right newState -> do
+              writeTVar stateVar newState
+              return $ if any isListQuery queries
+                then Right (Just "Statements executed successfully.", show currentState)
+                else Right (Just "Statements executed successfully.", "Statements executed successfully.")
+            Left err -> return $ Left ("Error executing statements: " ++ err)
+        Single query -> do
+          case Lib2.stateTransition currentState query of
+            Right (_, newState) -> do
+              writeTVar stateVar newState
+              return $ Right (Just "Statement executed successfully.", "Statement executed successfully.")
+            Left err -> return $ Left ("Error executing statement: " ++ err)
+    where
+      -- functions to check query type
+      isAddQuery (Lib2.Add _ _) = True
+      isAddQuery _ = False
+
+      isMakeReservationQuery (Lib2.MakeReservation _ _ _ _ _) = True
+      isMakeReservationQuery _ = False
+
+      isRemoveQuery (Lib2.Remove _) = True
+      isRemoveQuery _ = False
+
+      isCancelReservationQuery (Lib2.CancelReservation _) = True
+      isCancelReservationQuery _ = False
+
+      isAddAdditionalGuestQuery (Lib2.AddAdditionalGuest _ _) = True
+      isAddAdditionalGuestQuery _ = False
+
+      isListQuery Lib2.ListState = True
+      isListQuery _ = False
+
