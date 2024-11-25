@@ -8,7 +8,7 @@ This is a functional programming project designed to mimic a hotel management sy
 
 ```markdown
 
-<add> ::= "ADD. " <hotel> 
+<add> ::= "ADD. " <hotelsID> <hotel> 
 <remove> ::= "REMOVE. " <hotelsID> 
 
 <make_reservation> ::= "MAKE RESERVATION. " <guest> <hotelsID> <check_in> <check_out> <price>
@@ -44,13 +44,21 @@ This is a functional programming project designed to mimic a hotel management sy
 <time> ::= <digit> <digit> ":" <digit> <digit>
 ```
 
+### Changes regarding BNF structure and Lib2.hs
+
+Previously, when adding hotel entities, the id of the hotel would be automatically assigned based on when the command was executed, however, since the implementation of concurrent stateTransitioning, this proved troublesome. ID's started to become non-deterministic (after saving and loading, different reservations could be made with the same input).
+So, to improve reliability, changes to MakeReservation and Add commands were required. User must now provide an ID which they want to assign a hotel to.
+Now, if a command to add a hotel has the same id as a hotel previously added, the command will fail and spew out an invalid command error.
+
+Additional changes were required to Lib2.hs show instance in query, date, time, price datatypes.
+
 ### Commands
 
 * `add` - adds a specific hotel entity. The entity can include a hotel, a specific room within a hotel, special properties.
 
     Example:
     ```
-    ADD. HOTEL: Medis. CHAIN OF. HOTEL: Medis. FLOOR: 1. ROOM: 105. AMENITIES: Balcony, TV. 
+    ADD. 1. HOTEL: Medis. CHAIN OF. HOTEL: Medis. FLOOR: 1. ROOM: 105. AMENITIES: Balcony, TV. 
     ```
 * `remove` - removes a hotel entity from the available hotel list.
 
@@ -62,7 +70,7 @@ This is a functional programming project designed to mimic a hotel management sy
     
     Example:
     ```
-    MAKE RESERVATION. GUEST: ELVINAS SVILPA. HOTEL: Medis. CHAIN OF. HOTEL: Medis. FLOOR: 1. ROOM: 105. AMENITIES: Balcony, TV. CHECK IN: 2024-09-16 20:20. CHECK OUT: 2024-09-20 12:00. PRICE: 510.
+    MAKE RESERVATION. GUEST: ELVINAS SVILPA. 1. CHECK IN: 2024-09-16 20:20. CHECK OUT: 2024-09-20 12:00. PRICE: 510.
 
     ```
 * `cancel_reservation` - cancels a reservation based on its reservation ID.
@@ -79,8 +87,34 @@ This is a functional programming project designed to mimic a hotel management sy
     ```
 
 
-### Details
+### Batch queries and Lib3.hs commands
 
-Hotel managers also have the ability to specify check-in (check-out) dates, times and amenities, price.
+* `SAVE` - saves the current state in an efficient way (using marshall state). Information is saved in `info.txt`.
+
+    Example:
+    ```
+    >>> SAVE
+    ```
+
+* `LOAD` - loads the state from `info.txt`
+
+    Example:
+    ```
+    >>> LOAD
+    ```
+
+* Batch queries
+    
+    Type `:paste` to enable batch-mode. Then, all queries must start with `BEGIN` and end with `END`.
+
+    ```markdown
+    >>> :paste
+    | BEGIN
+    | <...>
+    | END
+    ```
+
+    (`Ctrl + D` or `Control^ + D` on Mac) to end Batch query mode.
+
 
 
