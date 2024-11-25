@@ -1,14 +1,15 @@
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE NamedFieldPuns #-}
 module Lib3
-    ( stateTransition,
-    StorageOp (..),
-    storageOpLoop,
-    parseCommand,
-    parseStatements,
-    marshallState,
-    renderStatements
-    ) where
+  ( stateTransition,
+  StorageOp (..),
+  storageOpLoop,
+  parseCommand,
+  parseStatements,
+  marshallState,
+  renderStatements,
+  Statements(..)
+  ) where
 
 import Control.Concurrent ( Chan , readChan, writeChan, newChan )
 import Control.Concurrent.STM(STM, TVar, atomically, readTVarIO, readTVar, writeTVar)
@@ -132,7 +133,7 @@ marshallState finalState =
     findRemoved initial final = initial \\ final -- in initial state but not in final
 
     addHotelsQueries :: [Lib2.AvailableHotelEntity] -> [Lib2.Query]
-    addHotelsQueries = map (\hotel -> Add (Lib2.availableHotel hotel))
+    addHotelsQueries = map (\hotel -> Add (Lib2.availableEntityId hotel) (Lib2.availableHotel hotel))
 
     removeHotelQueries :: [Lib2.AvailableHotelEntity] -> [Lib2.Query]
     removeHotelQueries = map (\hotel -> Lib2.Remove (Lib2.availableEntityId hotel))
@@ -154,7 +155,7 @@ marshallState finalState =
 
     isCancelled :: Lib2.Query -> Lib2.Query -> Bool
     isCancelled (Lib2.MakeReservation _ id1 _ _ _) (Lib2.Remove id2) = id1 == id2
-  --isCancelled (Lib2.Remove id1) (Lib2.MakeReservation _ id2 _ _ _) = id1 == id2
+    isCancelled (Lib2.Remove id1) (Lib2.MakeReservation _ id2 _ _ _) = id1 == id2
     isCancelled _ _ = False
 
     filterCancelled :: [Lib2.Query] -> [Lib2.Query]
@@ -185,8 +186,8 @@ renderStatements (Batch queries) =
 
 
 genQuery :: Lib2.Query -> String
-genQuery (Add hotel) =
-  "ADD. " ++ genHotel hotel
+genQuery (Add id hotel) =
+  "ADD. " ++ show id ++ ". " ++ genHotel hotel
 genQuery (Lib2.Remove id) =
   "REMOVE. " ++ show id ++ ". "
 genQuery (Lib2.MakeReservation guest id checkIn checkOut price) =

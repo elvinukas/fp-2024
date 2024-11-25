@@ -36,7 +36,7 @@ import Foreign.C (errnoToIOError)
 -- Currently it has no constructors but you can introduce
 -- as many as needed.
 data Query =
-  Add Hotel|
+  Add ID Hotel|
   Remove ID |
   MakeReservation Guest ID CheckIn CheckOut Price  |
   CancelReservation ID |
@@ -119,7 +119,7 @@ instance Eq Query where
   (==) _ _= False
 
 instance Show Lib2.Query where
-  show (Add hotel) = "Added hotel: \n" ++ formatHotelDetails hotel
+  show (Add (ID id) hotel) = "Added hotel: \n" ++ show id ++ " " ++ formatHotelDetails hotel
   show (Remove (ID id)) = "Remove hotel with ID: " ++ show id
   show (MakeReservation guest (ID id) checkIn checkOut price) =
     "Make reservation for guest: \n" ++ formatGuest guest ++
@@ -274,11 +274,14 @@ parseID input =
       in Right (ID intValue, remaining')
     Left err -> Left err
 
--- <add> ::= "ADD. " <hotelsID> 
+-- <add> ::= "ADD. " <hotelsID> <hotel> 
 parseAdd :: Parser Query
 parseAdd input =
-  case parseHotel input of
-    Right (hotel, remaining) -> Right (Add hotel, remaining)
+  case parseID input of
+    Right (id, rest) ->
+      case parseHotel rest of
+        Right (hotel, remaining) -> Right (Add id hotel, remaining)
+        Left err -> Left err
     Left err -> Left err
 
 -- <remove> ::= "REMOVE. " <hotelsID>
@@ -702,12 +705,14 @@ emptyState = State {
 -- an updated program's state.
 stateTransition :: State -> Query -> Either String (Maybe String, State)
 stateTransition st query = case query of
-  Add hotel ->
-    let newId = ID (length (availableHotelEntities st) + 1)
-        newHotelEntity = AvailableHotelEntity newId hotel
-        newHotels = newHotelEntity : availableHotelEntities st
-        newState = st { availableHotelEntities = newHotels }
-    in Right (Just $ "Hotel added successfully! ", newState)
+  Add id hotel ->
+    if any (\h -> availableEntityId h == id) (availableHotelEntities st)
+      then Left "Error: Hotel with this ID already exists."
+      else
+        let newHotelEntity = AvailableHotelEntity id hotel
+            newHotels = newHotelEntity : availableHotelEntities st
+            newState = st { availableHotelEntities = newHotels }
+        in Right (Just "Hotel added successfully!", newState)
 
   Remove (ID entityId) ->
     let newHotelEntities = filter (\h -> availableEntityId h /= ID entityId) (availableHotelEntities st)
