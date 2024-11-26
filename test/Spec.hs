@@ -111,18 +111,10 @@ genRoom size
       roomNumber <- choose (1, 10)
       return $ Lib2.Room roomNumber [] [] 
 
--- genFloor :: Gen Lib2.Floor
--- genFloor = do
---   floorNumber <- choose (1, 10)
---   rooms <- nonEmptyRooms
---   return $ Lib2.Floor floorNumber rooms
---   where
---     nonEmptyRooms :: Gen [Lib2.Room]
---     nonEmptyRooms = listOf1 genRoom
-
+-- helper function for gen floor
 nonEmptyRooms :: Int -> Gen [Lib2.Room]
 nonEmptyRooms size = do
-  numRooms <- choose (1, max 1 size)  -- Ensure at least 1 room
+  numRooms <- choose (1, max 1 size)  -- ensure at least 1 room
   vectorOf numRooms (genRoom (size `div` 2))
 
 genFloor :: Int -> Gen Lib2.Floor
@@ -190,6 +182,7 @@ genCommand = oneof
     pure Lib3.SaveCommand
   ]
 
+-- arbitraries
 instance Arbitrary Lib2.ID where
   arbitrary = genID
 
@@ -224,7 +217,6 @@ instance Arbitrary Lib2.State where
     reservations <- arbitrary
     return $ Lib2.State availableHotelEntities reservations
 
--- Define Arbitrary instances for the nested types
 instance Arbitrary Lib2.AvailableHotelEntity where
   arbitrary = do
     availableEntityId <- arbitrary
