@@ -159,8 +159,8 @@ marshallState finalState =
     combinedQueries = addQueries ++ removeQueries ++ reservationQueries
 
     isCancelled :: Lib2.Query -> Lib2.Query -> Bool
-    isCancelled (Lib2.MakeReservation _ id1 _ _ _) (Lib2.Remove id2) = id1 == id2
-    isCancelled (Lib2.Remove id1) (Lib2.MakeReservation _ id2 _ _ _) = id1 == id2
+    isCancelled (Lib2.MakeReservation _ id1 _ _ _) (Lib2.CancelReservation id2) = id1 == id2
+    isCancelled (Lib2.CancelReservation id1) (Lib2.MakeReservation _ id2 _ _ _) = id1 == id2
     isCancelled _ _ = False
 
     filterCancelled :: [Lib2.Query] -> [Lib2.Query]

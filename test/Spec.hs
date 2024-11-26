@@ -190,6 +190,24 @@ genCommand = oneof
     pure Lib3.SaveCommand
   ]
 
+instance Arbitrary Lib2.ID where
+  arbitrary = genID
+
+instance Arbitrary Lib2.Hotel where
+  arbitrary = genHotel 1
+
+instance Arbitrary Lib2.Guest where
+  arbitrary = genGuest
+
+instance Arbitrary Lib2.CheckIn where
+  arbitrary = genCheckIn
+
+instance Arbitrary Lib2.CheckOut where
+  arbitrary = genCheckOut
+
+instance Arbitrary Lib2.Price where
+  arbitrary = genPrice
+
 -- arbitrary instances
 instance Arbitrary Lib3.Query where
   arbitrary = genQuery
@@ -200,12 +218,47 @@ instance Arbitrary Lib3.Statements where
 instance Arbitrary Lib3.Command where
   arbitrary = genCommand
 
+instance Arbitrary Lib2.State where
+  arbitrary = do
+    availableHotelEntities <- arbitrary
+    reservations <- arbitrary
+    return $ Lib2.State availableHotelEntities reservations
 
+-- Define Arbitrary instances for the nested types
+instance Arbitrary Lib2.AvailableHotelEntity where
+  arbitrary = do
+    availableEntityId <- arbitrary
+    availableHotel <- arbitrary
+    return $ Lib2.AvailableHotelEntity availableEntityId availableHotel
+
+instance Arbitrary Lib2.Reservation where
+  arbitrary = do
+    reservationID <- arbitrary
+    hotel <- arbitrary
+    guests <- arbitrary
+    checkInDate <- arbitrary
+    checkOutDate <- arbitrary
+    price <- arbitrary
+    return $ Lib2.Reservation reservationID hotel guests checkInDate checkOutDate price
+
+
+-- other helper functions for marshall state test
+runQueries :: Lib2.State -> Lib3.Statements -> Lib2.State
+runQueries initialState (Lib3.Single query) = applyQuery initialState query
+runQueries initialState (Lib3.Batch queries) = foldl applyQuery initialState queries
+
+
+applyQuery :: Lib2.State -> Lib2.Query -> Lib2.State
+applyQuery st query = case Lib2.stateTransition st query of
+  Right (_, newState) -> newState
+  Left _ -> st
+
+
+-- | Property testing.
 
 propertyTests :: TestTree
 propertyTests = testGroup "Property tests"
-  [
-    QC.testProperty "Checking if rendering statement and parsing it back gives the original statement" $
+  [ QC.testProperty "Checking if rendering statement and parsing it back gives the original statement" $
       \statements ->
         let renderedStatements = Lib3.renderStatements statements
             parsedStatements = Lib3.parseStatements renderedStatements
@@ -218,38 +271,20 @@ propertyTests = testGroup "Property tests"
               Right (parsedStatement, "") -> renderedStatements == renderedParsedStatements
               _ -> False)
 
-
+  , QC.testProperty "Checking whether marshall state works correctly" $
+      \initialState ->
+        let finalQueries = Lib3.marshallState initialState
+            finalState = runQueries initialState finalQueries
+            finalStAHE = length (Lib2.availableHotelEntities finalState)
+            initialStAHE = length (Lib2.availableHotelEntities initialState)
+            isEqual = (show finalStAHE == show initialStAHE)
+        in counterexample
+            ("Initial state: \n" ++ show initialStAHE ++ "\nFinal state: \n" ++ show finalStAHE)
+            isEqual
   ]
 
--- -- | Property testing.
--- propertyTests :: TestTree
--- propertyTests = testGroup "Property tests"
---   [ testProperty "Checking if rendering statement and parsing it back gives the original statement" $
---       forAll arbitrary $ \statement ->
---           renderedStatements = Lib3.renderStatements statement
---           parsedStatements = Lib3.parseStatements renderedStatements
---       in counterexample
---           ("renderedStatements: " ++ renderedStatements ++ "\nparsedStatements: " ++ show parsedStatements)
---             (case parsedStatements of
---               Right (parsedStmt, "") -> renderedStatements == show parsedStmt
---               _ -> False)
-          
---   , testProperty "Checking if rendering statement and parsing it back gives the original statement (harder)" $
---       let statements = Lib3.Batch
---             [ Lib2.Add (Lib2.ID 1) (Lib2.Hotel "Ausra" [] [Lib2.Floor 1 [Lib2.Room 101 [] []]])
---             , Lib2.Add (Lib2.ID 2) (Lib2.Hotel "Rytas" [] [Lib2.Floor 2 [Lib2.Room 202 [] []]])
---             , Lib2.MakeReservation (Lib2.Guest "Valdas" "Adamkus") (Lib2.ID 1) (Lib2.CheckIn (Lib2.Date 2022 02 20) (Lib2.Time 12 30))
---              (Lib2.CheckOut (Lib2.Date 2022 02 22) (Lib2.Time 13 30)) (Lib2.Price 500)
---             ]
---           renderedStatements = Lib3.renderStatements statements
---           parsedStatements = Lib3.parseStatements renderedStatements
---       in counterexample
---           ("renderedStatements: " ++ renderedStatements ++ "\nparsedStatements: " ++ show parsedStatements)
---             (case parsedStatements of
---               Right (parsedStmt, "") -> renderedStatements == show parsedStmt
---               _ -> False)
-      
---   ]
+
+
 
 
 
