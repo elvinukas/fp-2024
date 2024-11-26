@@ -104,20 +104,46 @@ genName = listOf1 $ (elements (['A'..'Z'] ++ ['a'..'z']))
 genID :: Gen Lib2.ID
 genID = Lib2.ID <$> choose (1, 100)
 
-genRoom :: Gen Lib2.Room
-genRoom = Lib2.Room <$> choose (1, 10) <*> pure [] <*> pure []
+genRoom :: Int -> Gen Lib2.Room
+genRoom size
+  | size <= 0 = return $ Lib2.Room 1 [] [] 
+  | otherwise = do
+      roomNumber <- choose (1, 10)
+      return $ Lib2.Room roomNumber [] [] 
 
-genFloor :: Gen Lib2.Floor
-genFloor = do
-  floorNumber <- choose (1, 10)
-  rooms <- nonEmptyRooms
-  return $ Lib2.Floor floorNumber rooms
-  where
-    nonEmptyRooms :: Gen [Lib2.Room]
-    nonEmptyRooms = listOf1 genRoom
+-- genFloor :: Gen Lib2.Floor
+-- genFloor = do
+--   floorNumber <- choose (1, 10)
+--   rooms <- nonEmptyRooms
+--   return $ Lib2.Floor floorNumber rooms
+--   where
+--     nonEmptyRooms :: Gen [Lib2.Room]
+--     nonEmptyRooms = listOf1 genRoom
 
-genHotel :: Gen Lib2.Hotel
-genHotel = Lib2.Hotel <$> genName <*> pure [] <*> listOf genFloor
+nonEmptyRooms :: Int -> Gen [Lib2.Room]
+nonEmptyRooms size = do
+  numRooms <- choose (1, max 1 size)  -- Ensure at least 1 room
+  vectorOf numRooms (genRoom (size `div` 2))
+
+genFloor :: Int -> Gen Lib2.Floor
+genFloor size
+  | size <= 0 = do
+      rooms <- nonEmptyRooms 1  
+      return $ Lib2.Floor 1 rooms
+  | otherwise = do
+      floorNumber <- choose (1, 10)
+      rooms <- nonEmptyRooms (size `div` 2)  
+      return $ Lib2.Floor floorNumber rooms
+
+genHotel :: Int -> Gen Lib2.Hotel
+genHotel depth 
+  | depth <= 0 = do
+      name <- genName
+      return $ Lib2.Hotel name [] []
+  | otherwise = do
+      name <- genName
+      floors <- vectorOf (min depth 5) (genFloor (depth `div` 2))
+      return $ Lib2.Hotel name [] floors
 
 genGuest :: Gen Lib2.Guest
 genGuest = do
@@ -143,7 +169,7 @@ genPrice = Lib2.Price <$> choose (100, 5000)
 -- query generatoros
 genQuery :: Gen Lib2.Query
 genQuery = oneof
-  [ Lib2.Add <$> genID <*> genHotel
+  [ Lib2.Add <$> genID <*> genHotel 5
     ,Lib2.MakeReservation <$> genGuest <*> genID <*> genCheckIn <*> genCheckOut <*> genPrice
     ,Lib2.CancelReservation <$> genID
     ,Lib2.Remove <$> genID
