@@ -8,7 +8,7 @@ module Lib3
   parseStatements,
   marshallState,
   renderStatements,
-  genQuery,
+  renderQuery,
   Statements(..),
   Command(..)
   ) where
@@ -22,7 +22,7 @@ import Lib2 (Query(Add), formatHotel, formatReservation)
 import Debug.Trace
 
 instance Show Lib2.Query where
-  show = genQuery 
+  show = renderQuery 
 
 data StorageOp = Save String (Chan ()) | Load (Chan String)
 -- | This function is started from main
@@ -34,7 +34,7 @@ data StorageOp = Save String (Chan ()) | Load (Chan String)
 storageOpLoop :: Chan StorageOp -> IO ()
 storageOpLoop chan = loop
   where
-    loop = do
+    loop = do -- do-notation (pavercia >>= operatoriu (bind) paprasciau uzrasoma forma)
       op <- readChan chan -- reading the operation
       case op of
         Save info saveChannel -> do -- saving the info about status into a file
@@ -51,9 +51,9 @@ data Statements = Batch [Lib2.Query] |
                deriving (Eq)
 
 instance Show Statements where
-  show (Single query) = "BEGIN\n" ++ genQuery query ++ "END"  
+  show (Single query) = "BEGIN\n" ++ renderQuery query ++ "END"  
   show (Batch queries) =
-    "BEGIN\n" ++ unlines (map genQuery queries) ++ "END"  
+    "BEGIN\n" ++ unlines (map renderQuery queries) ++ "END" 
   
 data Command = StatementCommand Statements |
                LoadCommand |
@@ -73,7 +73,7 @@ trim str =
 
 
 -- | Parses user's input.
-parseCommand :: String -> Either String (Command, String)
+parseCommand :: String -> Either String (Command, String) -- monad'as either
 parseCommand input
   | trim input == "LOAD" = Right (LoadCommand, "")
   | trim input == "SAVE" = Right (SaveCommand, "")
@@ -90,7 +90,7 @@ parseCommand input
 parseStatements :: String -> Either String (Statements, String)
 parseStatements input =
   let trimmedInput = trim input in
-  trace ("Parsing input: " ++ show trimmedInput) $ 
+  --trace ("Parsing input: " ++ show trimmedInput) $ 
   if "BEGIN" `isPrefixOf` trimmedInput
     then case parseBatch (drop (length "BEGIN") trimmedInput) of
       Right (queries, rest) -> Right (Batch queries, rest)
@@ -112,10 +112,11 @@ parseBatch input = do
                                    && line /= "BEGIN"
                                    && line /= "END") queryLines
 
+  trace ("Cleaned queries: " ++ show cleanedQueries) $
   -- parsing each line
-  case mapM Lib2.parseQuery cleanedQueries of
-    Right queries -> Right (queries, unlines (drop 1 rest))  -- drop 1 to skip the END line
-    Left err -> Left err
+    case mapM Lib2.parseQuery cleanedQueries of -- monad mapM, if all pass, then okay, if not err, monadic
+      Right queries -> Right (queries, unlines (drop 1 rest))  -- drop 1 to skip the END line
+      Left err -> Left err
 
 
 
@@ -137,7 +138,7 @@ marshallState finalState =
     findRemoved initial final = initial \\ final -- in initial state but not in final
 
     addHotelsQueries :: [Lib2.AvailableHotelEntity] -> [Lib2.Query]
-    addHotelsQueries = map (\hotel -> Add (Lib2.availableEntityId hotel) (Lib2.availableHotel hotel))
+    addHotelsQueries = map (\hotel -> Add (Lib2.availableEntityId hotel) (Lib2.availableHotel hotel))  --map pritaiko funkciją kiekvienam sąrašo elementui, monadiska
 
     removeHotelQueries :: [Lib2.AvailableHotelEntity] -> [Lib2.Query]
     removeHotelQueries = map (\hotel -> Lib2.Remove (Lib2.availableEntityId hotel))
@@ -184,81 +185,81 @@ marshallState finalState =
 -- for all s: parseStatements (renderStatements s) == Right(s, "")
 renderStatements :: Statements -> String
 renderStatements (Single query) =
-  "BEGIN\n" ++ genQuery query ++ "\nEND"
+  "BEGIN\n" ++ renderQuery query ++ "\nEND"
 renderStatements (Batch queries) =
-  "BEGIN\n" ++ unlines (map genQuery queries) ++ "END"
+  "BEGIN\n" ++ unlines (map renderQuery queries) ++ "END"
 
 
-genQuery :: Lib2.Query -> String
-genQuery (Add id hotel) =
-  "ADD. " ++ show id ++ ". " ++ genHotel hotel
-genQuery (Lib2.Remove id) =
+renderQuery :: Lib2.Query -> String
+renderQuery (Add id hotel) =
+  "ADD. " ++ show id ++ ". " ++ renderHotel hotel
+renderQuery (Lib2.Remove id) =
   "REMOVE. " ++ show id ++ ". "
-genQuery (Lib2.MakeReservation guest id checkIn checkOut price) =
-  "MAKE RESERVATION. " ++ genGuest guest ++ show id ++ ". " ++
-  genCheckIn checkIn ++ genCheckout checkOut ++ genPrice price
-genQuery (Lib2.CancelReservation id) =
+renderQuery (Lib2.MakeReservation guest id checkIn checkOut price) =
+  "MAKE RESERVATION. " ++ renderGuest guest ++ show id ++ ". " ++
+  renderCheckIn checkIn ++ renderCheckout checkOut ++ renderPrice price
+renderQuery (Lib2.CancelReservation id) =
   "CANCEL RESERVATION. " ++ show id ++ ". "
-genQuery (Lib2.AddAdditionalGuest guest id) =
-  "ADD ADDITIONAL GUEST. " ++ genGuest guest ++ show id ++ ". "
-genQuery (Lib2.ListState) =
+renderQuery (Lib2.AddAdditionalGuest guest id) =
+  "ADD ADDITIONAL GUEST. " ++ renderGuest guest ++ show id ++ ". "
+renderQuery (Lib2.ListState) =
   "LIST"
 
-genHotel :: Lib2.Hotel -> String
-genHotel (Lib2.Hotel {Lib2.hotelName, Lib2.hotelChain, Lib2.floors}) =
+renderHotel :: Lib2.Hotel -> String
+renderHotel (Lib2.Hotel {Lib2.hotelName, Lib2.hotelChain, Lib2.floors}) =
   "HOTEL: " ++ hotelName ++ ". " ++
-  genChain hotelChain ++
-  genFloors floors
+  renderChain hotelChain ++
+  renderFloors floors
 
-genChain :: [Lib2.Hotel] -> String
-genChain [] = ""
-genChain (hotel:hotels) =
-  "CHAIN OF. " ++ genHotel hotel ++ genChain hotels
+renderChain :: [Lib2.Hotel] -> String
+renderChain [] = ""
+renderChain (hotel:hotels) =
+  "CHAIN OF. " ++ renderHotel hotel ++ renderChain hotels
 
-genFloors :: [Lib2.Floor] -> String
-genFloors [] = ""
-genFloors floors =
-  concatMap genFloor floors
+renderFloors :: [Lib2.Floor] -> String
+renderFloors [] = ""
+renderFloors floors =
+  concatMap renderFloor floors
 
-genFloor (Lib2.Floor { Lib2.floorNumber, Lib2.rooms }) =
-  "FLOOR: " ++ show floorNumber ++ ". " ++ genRooms rooms
+renderFloor (Lib2.Floor { Lib2.floorNumber, Lib2.rooms }) =
+  "FLOOR: " ++ show floorNumber ++ ". " ++ renderRooms rooms
 
-genRooms :: [Lib2.Room] -> String
-genRooms [] = ""
-genRooms (room:rooms) =
-  genRoom room ++ genRooms rooms
+renderRooms :: [Lib2.Room] -> String
+renderRooms [] = ""
+renderRooms (room:rooms) =
+  renderRoom room ++ renderRooms rooms
 
-genRoom :: Lib2.Room -> String
-genRoom room =
+renderRoom :: Lib2.Room -> String
+renderRoom room =
   "ROOM: " ++ show (Lib2.roomNumber room) ++ ". " ++
-  genAmenities (Lib2.amenities room) ++
-  genRoomSections (Lib2.roomSections room)
+  renderAmenities (Lib2.amenities room) ++
+  renderRoomSections (Lib2.roomSections room)
  
 
-genRoomSections :: [Lib2.Room] -> String
-genRoomSections [] = ""
-genRoomSections (section:sections) =
-  "ROOM SECTION. " ++ genRoom section ++
-  genRoomSections sections
+renderRoomSections :: [Lib2.Room] -> String
+renderRoomSections [] = ""
+renderRoomSections (section:sections) =
+  "ROOM SECTION. " ++ renderRoom section ++
+  renderRoomSections sections
 
-genAmenities :: [Lib2.Amenity] -> String
-genAmenities [] = ""
-genAmenities amenities = "AMENITIES: " ++ intercalate ", " (map show amenities) ++ ". "
+renderAmenities :: [Lib2.Amenity] -> String
+renderAmenities [] = ""
+renderAmenities amenities = "AMENITIES: " ++ intercalate ", " (map show amenities) ++ ". " -- functor map 
 
-genGuest :: Lib2.Guest -> String
-genGuest (Lib2.Guest{Lib2.guestName, Lib2.guestSurname}) =
+renderGuest :: Lib2.Guest -> String
+renderGuest (Lib2.Guest{Lib2.guestName, Lib2.guestSurname}) =
   "GUEST: " ++ guestName ++ " " ++ guestSurname ++ ". "
 
-genCheckIn :: Lib2.CheckIn -> String
-genCheckIn checkIn =
+renderCheckIn :: Lib2.CheckIn -> String
+renderCheckIn checkIn =
   "CHECK IN: " ++ show (Lib2.checkInDate checkIn) ++ " " ++ show (Lib2.checkOuttime checkIn) ++ ". "
 
-genCheckout :: Lib2.CheckOut -> String
-genCheckout checkOut =
+renderCheckout :: Lib2.CheckOut -> String
+renderCheckout checkOut =
   "CHECK OUT: " ++ show (Lib2.checkOutDate checkOut) ++ " " ++ show (Lib2.checkOutTime checkOut) ++ ". "
 
-genPrice :: Lib2.Price -> String
-genPrice (Lib2.Price price) =
+renderPrice :: Lib2.Price -> String
+renderPrice (Lib2.Price price) =
   "PRICE: " ++ show price ++ ". "
 
 
@@ -280,11 +281,11 @@ stateTransition stateVar command ioChan = case command of
     writeChan ioChan (Load loadChan)
     info <- readChan loadChan
     case parseStatements info of
-      Right (statements, _) -> atomically $ do
+      Right (statements, _) -> atomically $ do -- atomically monad'as
         initialState <- readTVar stateVar
         case statements of
           Batch queries -> do
-            let applyQueries = foldl (\stateRes query -> case stateRes of
+            let applyQueries = foldl (\stateRes query -> case stateRes of -- accumuliuojamos reiksmes, vis pridedamos viena prie kitos
                   Right state -> case Lib2.stateTransition state query of
                     Right (_, newState) -> Right newState
                     Left err -> Left err

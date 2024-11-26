@@ -14,6 +14,7 @@ import Data.Either (isRight)
 import Lib1 qualified
 import Lib2 qualified
 import Lib3 qualified
+import qualified Lib2 as Lib3
 
 main :: IO ()
 main = defaultMain tests
@@ -96,36 +97,124 @@ unitTests = testGroup "Lib1 / Lib2 tests"
 
     ]
     
+-- generators
+genName :: Gen String
+genName = listOf1 $ (elements (['A'..'Z'] ++ ['a'..'z']))
 
--- | Property testing.
+genID :: Gen Lib2.ID
+genID = Lib2.ID <$> choose (1, 100)
+
+genRoom :: Gen Lib2.Room
+genRoom = Lib2.Room <$> choose (1, 10) <*> pure [] <*> pure []
+
+genFloor :: Gen Lib2.Floor
+genFloor = Lib2.Floor <$> choose (1, 10) <*> listOf genRoom
+
+genHotel :: Gen Lib2.Hotel
+genHotel = Lib2.Hotel <$> genName <*> pure [] <*> listOf genFloor
+
+genGuest :: Gen Lib2.Guest
+genGuest = do
+  firstName <- genName
+  lastName <- genName
+  return $ Lib2.Guest firstName lastName
+
+genDate :: Gen Lib2.Date
+genDate = Lib2.Date <$> choose (2020, 2030) <*> choose (1, 12) <*> choose (1, 31)
+
+genTime :: Gen Lib2.Time
+genTime = Lib2.Time <$> choose (0, 23) <*> choose (0, 59)
+
+genCheckIn :: Gen Lib2.CheckIn
+genCheckIn = Lib2.CheckIn <$> genDate <*> genTime
+
+genCheckOut :: Gen Lib2.CheckOut
+genCheckOut = Lib2.CheckOut <$> genDate <*> genTime
+
+genPrice :: Gen Lib2.Price
+genPrice = Lib2.Price <$> choose (100, 5000)
+
+-- query generatoros
+genQuery :: Gen Lib2.Query
+genQuery = oneof
+  [ Lib2.Add <$> genID <*> genHotel
+    ,Lib2.MakeReservation <$> genGuest <*> genID <*> genCheckIn <*> genCheckOut <*> genPrice
+    ,Lib2.CancelReservation <$> genID
+    ,Lib2.Remove <$> genID
+  ]
+
+genStatements :: Gen Lib3.Statements
+genStatements = oneof
+  [ 
+    Lib3.Single <$> genQuery
+    ,Lib3.Batch <$> listOf genQuery
+  ]
+
+genCommand :: Gen Lib3.Command
+genCommand = oneof
+  [
+    Lib3.StatementCommand <$> genStatements,
+    pure Lib3.LoadCommand,
+    pure Lib3.SaveCommand
+  ]
+
+-- arbitrary instances
+instance Arbitrary Lib3.Query where
+  arbitrary = genQuery
+
+instance Arbitrary Lib3.Statements where
+  arbitrary = genStatements
+
+instance Arbitrary Lib3.Command where
+  arbitrary = genCommand
+
+
+
 propertyTests :: TestTree
 propertyTests = testGroup "Property tests"
-  [ testProperty "Checking if rendering statement and parsing it back gives the original statement" $
-      let statement = Lib3.Single (Lib2.Add (Lib2.ID 1) (Lib2.Hotel "Grand" [] [Lib2.Floor 1 [Lib2.Room 101 [] []]]))
-          renderedStatements = Lib3.renderStatements statement
-          parsedStatements = Lib3.parseStatements renderedStatements
-      in counterexample
-          ("renderedStatements: " ++ renderedStatements ++ "\nparsedStatements: " ++ show parsedStatements)
-            (case parsedStatements of
-              Right (parsedStmt, "") -> renderedStatements == show parsedStmt
+  [
+    QC.testProperty "Checking if rendering statement and parsing it back gives the original statement" $
+      \statements ->
+        let renderedStatements = Lib3.renderStatements statements
+            parsedStatements = Lib3.parseStatements renderedStatements
+        in counterexample
+            ("Rendered statement: \n" ++ renderedStatements ++ "\nParsed statement: " ++ show parsedStatements)
+            (case parsedStatements of 
+              Right (parsedStatement, "") -> renderedStatements == show parsedStatement
               _ -> False)
-          
-  , testProperty "Checking if rendering statement and parsing it back gives the original statement (harder)" $
-      let statements = Lib3.Batch
-            [ Lib2.Add (Lib2.ID 1) (Lib2.Hotel "Ausra" [] [Lib2.Floor 1 [Lib2.Room 101 [] []]])
-            , Lib2.Add (Lib2.ID 2) (Lib2.Hotel "Rytas" [] [Lib2.Floor 2 [Lib2.Room 202 [] []]])
-            , Lib2.MakeReservation (Lib2.Guest "Valdas" "Adamkus") (Lib2.ID 1) (Lib2.CheckIn (Lib2.Date 2022 02 20) (Lib2.Time 12 30))
-             (Lib2.CheckOut (Lib2.Date 2022 02 22) (Lib2.Time 13 30)) (Lib2.Price 500)
-            ]
-          renderedStatements = Lib3.renderStatements statements
-          parsedStatements = Lib3.parseStatements renderedStatements
-      in counterexample
-          ("renderedStatements: " ++ renderedStatements ++ "\nparsedStatements: " ++ show parsedStatements)
-            (case parsedStatements of
-              Right (parsedStmt, "") -> renderedStatements == show parsedStmt
-              _ -> False)
-      
+
+
   ]
+
+-- -- | Property testing.
+-- propertyTests :: TestTree
+-- propertyTests = testGroup "Property tests"
+--   [ testProperty "Checking if rendering statement and parsing it back gives the original statement" $
+--       forAll arbitrary $ \statement ->
+--           renderedStatements = Lib3.renderStatements statement
+--           parsedStatements = Lib3.parseStatements renderedStatements
+--       in counterexample
+--           ("renderedStatements: " ++ renderedStatements ++ "\nparsedStatements: " ++ show parsedStatements)
+--             (case parsedStatements of
+--               Right (parsedStmt, "") -> renderedStatements == show parsedStmt
+--               _ -> False)
+          
+--   , testProperty "Checking if rendering statement and parsing it back gives the original statement (harder)" $
+--       let statements = Lib3.Batch
+--             [ Lib2.Add (Lib2.ID 1) (Lib2.Hotel "Ausra" [] [Lib2.Floor 1 [Lib2.Room 101 [] []]])
+--             , Lib2.Add (Lib2.ID 2) (Lib2.Hotel "Rytas" [] [Lib2.Floor 2 [Lib2.Room 202 [] []]])
+--             , Lib2.MakeReservation (Lib2.Guest "Valdas" "Adamkus") (Lib2.ID 1) (Lib2.CheckIn (Lib2.Date 2022 02 20) (Lib2.Time 12 30))
+--              (Lib2.CheckOut (Lib2.Date 2022 02 22) (Lib2.Time 13 30)) (Lib2.Price 500)
+--             ]
+--           renderedStatements = Lib3.renderStatements statements
+--           parsedStatements = Lib3.parseStatements renderedStatements
+--       in counterexample
+--           ("renderedStatements: " ++ renderedStatements ++ "\nparsedStatements: " ++ show parsedStatements)
+--             (case parsedStatements of
+--               Right (parsedStmt, "") -> renderedStatements == show parsedStmt
+--               _ -> False)
+      
+--   ]
 
 
 
