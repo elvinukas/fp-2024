@@ -107,14 +107,14 @@ parseBatch input = do
   let lines' = lines input  -- split into lines
   let (queryLines, rest) = break (== "END") lines'  -- split at END
 
-  -- removing empty lines, begin and end markers
+      -- removing empty lines, begin and end markers
   let cleanedQueries = filter (\line -> not (null (trim line))
                                    && line /= "BEGIN"
                                    && line /= "END") queryLines
 
-  trace ("Cleaned queries: " ++ show cleanedQueries) $
+  --trace ("Cleaned queries: " ++ show cleanedQueries) $
   -- parsing each line
-    case mapM Lib2.parseQuery cleanedQueries of -- monad mapM, if all pass, then okay, if not err, monadic
+  case mapM Lib2.parseQuery cleanedQueries of -- monad mapM, if all pass, then okay, if not err, monadic
       Right queries -> Right (queries, unlines (drop 1 rest))  -- drop 1 to skip the END line
       Left err -> Left err
 

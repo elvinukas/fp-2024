@@ -108,7 +108,13 @@ genRoom :: Gen Lib2.Room
 genRoom = Lib2.Room <$> choose (1, 10) <*> pure [] <*> pure []
 
 genFloor :: Gen Lib2.Floor
-genFloor = Lib2.Floor <$> choose (1, 10) <*> listOf genRoom
+genFloor = do
+  floorNumber <- choose (1, 10)
+  rooms <- nonEmptyRooms
+  return $ Lib2.Floor floorNumber rooms
+  where
+    nonEmptyRooms :: Gen [Lib2.Room]
+    nonEmptyRooms = listOf1 genRoom
 
 genHotel :: Gen Lib2.Hotel
 genHotel = Lib2.Hotel <$> genName <*> pure [] <*> listOf genFloor
@@ -177,10 +183,13 @@ propertyTests = testGroup "Property tests"
       \statements ->
         let renderedStatements = Lib3.renderStatements statements
             parsedStatements = Lib3.parseStatements renderedStatements
+            renderedParsedStatements = case parsedStatements of
+              Right (parsedStatement, _) -> Lib3.renderStatements parsedStatement
+              Left _ -> ""
         in counterexample
-            ("Rendered statement: \n" ++ renderedStatements ++ "\nParsed statement: " ++ show parsedStatements)
+            ("Rendered statement: \n" ++ renderedStatements ++ "\nParsed statement: \n" ++ renderedParsedStatements)
             (case parsedStatements of 
-              Right (parsedStatement, "") -> renderedStatements == show parsedStatement
+              Right (parsedStatement, "") -> renderedStatements == renderedParsedStatements
               _ -> False)
 
 

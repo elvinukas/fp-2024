@@ -258,7 +258,7 @@ parseID :: Parser ID
 parseID input = 
   case parseInt input of
     Right (intValue, remaining) -> 
-      let remaining' = dropWhile isSpace (drop (length (show intValue)) remaining)
+      let remaining' = dropWhile isSpace remaining
       in Right (ID intValue, remaining')
     Left err -> Left err
 
